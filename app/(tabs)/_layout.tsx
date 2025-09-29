@@ -38,6 +38,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons name="food-bank" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => <MaterialIcons name="code" size={24} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
