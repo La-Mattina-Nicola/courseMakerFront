@@ -11,12 +11,22 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="recipe"
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
         headerShown: false,
         tabBarButton: HapticTab,
       }}
     >
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="home" size={24} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="ingredients"
         options={{
@@ -27,18 +37,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="home"
+        name="recipe"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => (
-            <MaterialIcons name="code" size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="login"
-        options={{
-          title: "Login",
+          title: "Recipe",
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="code" size={24} color={color} />
           ),

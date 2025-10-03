@@ -1,7 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { removeTokens } from "../../utils/auth";
 
@@ -96,38 +104,50 @@ function RecipeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={async () => {
-          await removeTokens();
-          router.replace("/login");
-        }}
-      >
-        <Ionicons name="log-out-outline" size={24} color="#888" />
-      </TouchableOpacity>
       <View style={styles.header}>
-        <Text style={styles.title}>Bienvenue sur CourseMaker !</Text>
+        <Text style={styles.title}>Recipes</Text>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={async () => {
+            await removeTokens();
+            router.replace("/login");
+          }}
+        >
+          <Ionicons name="log-out-outline" size={24} color="#888" />
+        </TouchableOpacity>
       </View>
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#aaa" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher"
+          placeholderTextColor="#666"
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
+
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="orangered" />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={1}
+          contentContainerStyle={styles.grid}
+          renderItem={({ item }) => <RecipeCard item={item} />}
+        />
+      )}
 
       <TouchableOpacity
-        style={styles.listButton}
-        onPress={() => router.push("/(tabs)/recipe")}
+        style={styles.addButton}
+        onPress={() => router.push("/recipeForm?mode=create")}
       >
-        <Text style={styles.listButtonText}>Voir les recettes</Text>
+        <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
-
-      <View style={styles.stackContainer}>
-        <Text style={styles.stackTitle}>Famille</Text>
-        <View style={styles.stackCard}>
-          <Text style={styles.stackCardTitle}>Nom de la famille</Text>
-          <Text style={styles.stackCardSubtitle}>Membres :</Text>
-          <View style={styles.membersRow}>
-            <Text style={styles.member}>Alice</Text>
-            <Text style={styles.member}>Bob</Text>
-            <Text style={styles.member}>Charlie</Text>
-          </View>
-        </View>
-      </View>
     </SafeAreaView>
   );
 }
@@ -144,23 +164,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
-    paddingTop: 16,
+    marginBottom: 16,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "600",
-    color: "#fff",
-    letterSpacing: 0.5,
-  },
+  title: { fontSize: 28, fontWeight: "600", color: "#fff" },
   logoutButton: {
-    position: "absolute",
-    top: 40,
-    right: 20,
     padding: 8,
-    backgroundColor: "#222",
+    backgroundColor: "#333",
     borderRadius: 8,
-    zIndex: 10,
+    marginLeft: 8,
   },
   searchContainer: {
     flexDirection: "row",
@@ -182,62 +193,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: "500", color: "#fff" },
   cardSubtitle: { fontSize: 12, color: "#aaa", marginTop: 8 },
-  listButton: {
-    backgroundColor: "#ff7043",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignSelf: "center",
-    marginBottom: 24,
-  },
-  listButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  stackContainer: {
-    marginTop: 8,
-    backgroundColor: "#181818",
-    borderRadius: 8,
+  addButton: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    backgroundColor: "orangered",
+    borderRadius: 30,
     padding: 16,
-  },
-  stackTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  stackCard: {
-    backgroundColor: "#232323",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  stackCardTitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#fff",
-    marginBottom: 4,
-  },
-  stackCardSubtitle: {
-    fontSize: 13,
-    color: "#ff7043",
-    marginBottom: 8,
-    fontWeight: "500",
-  },
-  membersRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 2,
-  },
-  member: {
-    backgroundColor: "#333",
-    color: "#fff",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    fontSize: 13,
-    fontWeight: "500",
+    elevation: 5,
   },
 });
 
