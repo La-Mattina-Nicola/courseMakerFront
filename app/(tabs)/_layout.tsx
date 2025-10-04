@@ -3,17 +3,19 @@ import React from "react";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       initialRouteName="recipe"
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: Colors.dark.tint,
+        tabBarStyle: {
+          backgroundColor: Colors.dark.background,
+          borderTopColor: "#333", // couleur de la bordure
+          borderTopWidth: 2, // épaisseur de la bordure
+        },
         headerShown: false,
         tabBarButton: HapticTab,
       }}

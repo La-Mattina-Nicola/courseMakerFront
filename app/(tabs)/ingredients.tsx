@@ -123,8 +123,9 @@ function Ingredients() {
   };
 
   return (
-    <SafeAreaView style={styles.sheet}>
+    <SafeAreaView style={styles.safeArea}>
       <SectionList
+        contentContainerStyle={styles.contentContainer}
         sections={sections}
         keyExtractor={(item, index) => `${item.type}-${item.item.id}-${index}`}
         renderItem={renderItem}
@@ -137,8 +138,14 @@ function Ingredients() {
 }
 
 const styles = StyleSheet.create({
-  sheet: {
+  safeArea: {
+    backgroundColor: "#121212",
+    flex: 1,
+  },
+  contentContainer: {
     margin: 10,
+    backgroundColor: "#121212",
+    flexGrow: 1,
   },
   title: {
     fontSize: 20,

@@ -167,8 +167,10 @@ const RecipeForm = () => {
         },
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      console.log("Success:", json);
+      const text = await res.text();
+      console.log("API response:", res.status, text);
+      const data = JSON.parse(text);
+      console.log("Success:", data);
       router.back(); // Retour à la page précédente
     } catch (err) {
       console.error("Error submitting recipe", err);
