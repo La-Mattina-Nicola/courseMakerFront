@@ -8,7 +8,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 export default function TabLayout() {
   return (
     <Tabs
-      initialRouteName="recipe"
+      initialRouteName="home"
       screenOptions={{
         tabBarActiveTintColor: Colors.dark.tint,
         tabBarStyle: {
