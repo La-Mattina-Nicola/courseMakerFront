@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
+  ActivityIndicator,
   Modal,
   ScrollView,
   StyleSheet,
@@ -120,8 +121,13 @@ function RecipeScreen() {
     React.useState<any>(null);
   const [showShoppingListPicker, setShowShoppingListPicker] =
     React.useState(false);
+  // Ne pas écraser la sélection courante à chaque reload
   React.useEffect(() => {
-    if (shoppingLists.length > 0) {
+    if (
+      shoppingLists.length > 0 &&
+      (!selectedShoppingList ||
+        !shoppingLists.some((l: any) => l.id === selectedShoppingList.id))
+    ) {
       setSelectedShoppingList(shoppingLists[0]);
     }
   }, [userData]);
@@ -145,8 +151,8 @@ function RecipeScreen() {
         };
       };
     } = {};
-    shoppingLists.forEach((list: any) => {
-      (list.items || []).forEach((item: any) => {
+    if (selectedShoppingList && Array.isArray(selectedShoppingList.items)) {
+      selectedShoppingList.items.forEach((item: any) => {
         const type = item.ingredient_type || "Autre";
         const name = item.ingredient_name;
         if (!mergeMap[type]) mergeMap[type] = {};
@@ -155,20 +161,20 @@ function RecipeScreen() {
           mergeMap[type][name].quantity += item.quantity;
         } else {
           mergeMap[type][name] = {
-            id: item.id, // garde le premier id rencontré
+            id: item.id,
             name,
             quantity: item.quantity,
             unit: item.unit,
           };
         }
       });
-    });
+    }
     // Transforme mergeMap en tableau pour chaque type
     Object.entries(mergeMap).forEach(([type, itemsObj]) => {
       result[type] = Object.values(itemsObj);
     });
     return result;
-  }, [shoppingLists]);
+  }, [selectedShoppingList]);
 
   if (loading) {
     return (
@@ -179,7 +185,7 @@ function RecipeScreen() {
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <Text style={{ color: "#fff" }}>Chargement...</Text>
+          <ActivityIndicator size="large" color={Colors.dark.action} />
         </View>
       </SafeAreaView>
     );
@@ -288,9 +294,11 @@ function RecipeScreen() {
               onPress={() => setShowShoppingListPicker((v) => !v)}
               activeOpacity={0.7}
             >
-              <Text style={styles.blockTitle}>
-                {selectedShoppingList?.name || "Liste des courses"}
-              </Text>
+              <View style={styles.blockName}>
+                <Text style={styles.blockTitle}>
+                  {selectedShoppingList?.name || "Liste des courses"}
+                </Text>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.addIngredientButton}
@@ -542,13 +550,13 @@ function RecipeScreen() {
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={async () => {
-            if (!shoppingLists.length) return;
+            if (!selectedShoppingList) return;
             try {
               setLoading(true);
               setError(null);
               const token = await AsyncStorage.getItem("accessToken");
-              const listId = shoppingLists[0].id;
-              // Appel API pour supprimer tous les items de la liste de courses spécifiée
+              const listId = selectedShoppingList.id;
+              // Appel API pour supprimer tous les items de la liste de courses sélectionnée
               const res = await fetch(
                 `${api}shopping-lists/${listId}/clear-items/`,
                 {
@@ -666,6 +674,155 @@ function ShoppingItem({
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 24,
+  },
+  fixedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: Colors.dark.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 32,
+    paddingBottom: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: "#333",
+  },
+  homeTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+    letterSpacing: 1,
+  },
+  logoutIcon: {
+    padding: 4,
+  },
+  block: {
+    backgroundColor: Colors.dark.secondary,
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 16,
+  },
+  blockName: {
+    borderColor: Colors.dark.action,
+    borderWidth: 2,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  blockTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#ECEDEE",
+    marginBottom: 8,
+  },
+  familyButton: {
+    backgroundColor: Colors.dark.action,
+    width: "100%",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    alignSelf: "flex-start",
+    marginTop: 8,
+  },
+  familyButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
+    textAlign: "center",
+  },
+  familyMembersList: {
+    marginBottom: 12,
+  },
+  familyName: {
+    fontSize: 16,
+    color: "#fff",
+    marginBottom: 8,
+  },
+  familyMember: {
+    fontSize: 14,
+    color: "#fff",
+    marginBottom: 4,
+  },
+  shoppingList: {
+    marginTop: 12,
+  },
+  membersRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 10,
+    gap: 8,
+  },
+  memberTile: {
+    backgroundColor: Colors.dark.tertiary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+    marginRight: 8,
+    alignItems: "center",
+    minWidth: 48,
+  },
+  memberTileText: {
+    color: "#fff",
+    fontSize: 15,
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  addIngredientButton: {
+    backgroundColor: Colors.dark.action,
+    borderRadius: 8,
+    padding: 8,
+    marginLeft: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  listSelectorBlock: {
+    backgroundColor: Colors.dark.secondary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  typePickerBlock: {
+    backgroundColor: Colors.dark.secondary,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  typePickerItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  typePickerText: {
+    color: "#fff",
+    fontSize: 15,
+  },
+  createListButton: {
+    backgroundColor: Colors.dark.action,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
   categoryBox: {
     backgroundColor: Colors.dark.secondary,
     borderRadius: 14,
@@ -677,6 +834,50 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 2,
+  },
+  itemBlock: {
+    backgroundColor: Colors.dark.tertiary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  itemText: {
+    color: "#fff",
+    fontSize: 16,
+    flex: 1,
+    marginBottom: 2,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+  itemQty: {
+    color: "#fff",
+    fontSize: 15,
+    marginRight: 12,
+    fontWeight: "bold",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  collapseIcon: {
+    fontSize: 18,
+    color: "#9BA1A6",
+    marginLeft: 8,
+  },
+  ingredientType: {
+    color: "#9BA1A6",
+    fontSize: 15,
+    fontWeight: "bold",
+    marginLeft: 2,
   },
   modalTitle: {
     color: Colors.dark.text,
@@ -823,14 +1024,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 8,
   },
-  addIngredientButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    padding: 8,
-    marginLeft: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   deleteButton: {
     backgroundColor: Colors.dark.action,
     borderRadius: 8,
@@ -844,149 +1037,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.primary,
-    paddingHorizontal: 24,
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: Colors.dark.secondary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 32,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: "#333",
-  },
-  homeTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#fff",
-    letterSpacing: 1,
-  },
-  logoutIcon: {
-    padding: 4,
-  },
-  block: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 16,
-  },
-  blockTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#ECEDEE",
-    marginBottom: 8,
-  },
-  itemBlock: {
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  itemText: {
-    color: "#fff",
-    fontSize: 16,
-    flex: 1,
-    marginBottom: 2,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  itemQty: {
-    color: "#fff",
-    fontSize: 15,
-    marginRight: 12,
-    fontWeight: "bold",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
-  collapseIcon: {
-    fontSize: 18,
-    color: "#9BA1A6",
-    marginLeft: 8,
-  },
-  ingredientType: {
-    color: "#9BA1A6",
-    fontSize: 15,
-    fontWeight: "bold",
-    marginLeft: 2,
-  },
-  familyButton: {
-    backgroundColor: Colors.dark.action,
-    width: "100%",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    alignSelf: "flex-start",
-    marginTop: 8,
-  },
-  familyButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 15,
-    textAlign: "center",
-  },
-  familyMembersList: {
-    marginBottom: 12,
-  },
-  familyName: {
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 8,
-  },
-  familyMember: {
-    fontSize: 14,
-    color: "#fff",
-    marginBottom: 4,
-  },
-  shoppingList: {
-    marginTop: 12,
-  },
-  membersRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 10,
-    gap: 8,
-  },
-  memberTile: {
-    backgroundColor: "#131313",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 8,
-    marginRight: 8,
-    alignItems: "center",
-    minWidth: 48,
-  },
-  memberTileText: {
-    color: "#fff",
-    fontSize: 15,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
   addIngredientBlockBtnsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -994,41 +1044,6 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
     width: "100%",
-  },
-  listSelectorBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    marginRight: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  typePickerBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  typePickerItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#333",
-  },
-  typePickerText: {
-    color: "#fff",
-    fontSize: 15,
-  },
-  createListButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
   },
 });
 

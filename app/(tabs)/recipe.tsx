@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -14,39 +15,34 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { removeTokens } from "../../utils/auth";
 
-interface IngredientType {
-  id: number;
-  name: string;
-}
-
-interface Ingredient {
-  id: number;
-  name: string;
-  type: IngredientType;
-}
+// Props for RecipeCard
 
 interface RecipeType {
   id: number;
   name: string;
 }
 
-interface RecipeIngredient {
-  id: number;
-  ingredient: Ingredient;
-  quantity: number;
-  unit: { id: number; name: string } | null;
-}
-
+// Define the Recipe interface
 interface Recipe {
   id: number;
   name: string;
   type: RecipeType;
-  ingredients: RecipeIngredient[];
+  ingredients: any[]; // Replace 'any' with your ingredient type if available
+  is_favorite?: boolean;
 }
 
-const RecipeCard: React.FC<{ item: Recipe; listName: string }> = ({
+interface RecipeCardProps {
+  item: Recipe;
+  listName: string;
+  familyId: number | null;
+  favoriteIds: number[];
+}
+
+const RecipeCard: React.FC<RecipeCardProps> = ({
   item,
   listName,
+  familyId,
+  favoriteIds,
 }) => {
   const router = useRouter();
 
@@ -59,6 +55,7 @@ const RecipeCard: React.FC<{ item: Recipe; listName: string }> = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+
           Authorization: `${token}`,
         },
         body: JSON.stringify({
@@ -78,6 +75,8 @@ const RecipeCard: React.FC<{ item: Recipe; listName: string }> = ({
       console.log("Erreur lors de l'ajout à la liste de courses");
     }
   };
+
+  // ...existing code...
 
   return (
     <TouchableOpacity
@@ -114,6 +113,7 @@ const RecipeCard: React.FC<{ item: Recipe; listName: string }> = ({
 };
 
 function RecipeScreen() {
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const api = process.env.EXPO_PUBLIC_API;
   const token = process.env.EXPO_PUBLIC_TOKEN;
 
@@ -125,6 +125,7 @@ function RecipeScreen() {
   const [selectedType, setSelectedType] = useState<RecipeType | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [userLoading, setUserLoading] = useState(true);
+  // Filter only, do not sort (already sorted by favorites first)
   const filtered = recipes.filter(
     (r) =>
       r.name.toLowerCase().includes(search.toLowerCase()) &&
@@ -135,6 +136,21 @@ function RecipeScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      // Fetch families to get favorite_recipes FIRST
+      const famRes = await fetch(`${api}families/`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `${token}`,
+        },
+      });
+      const famJson = await famRes.json();
+      // Use first family
+      const favoriteRecipes =
+        famJson.favorite_recipes || famJson[0]?.favorite_recipes || [];
+      const ids = favoriteRecipes.map((r: any) => r.id);
+      setFavoriteIds(ids);
+
+      // Fetch recipes
       const response = await fetch(`${api}recipes/`, {
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +158,18 @@ function RecipeScreen() {
         },
       });
       const json = await response.json();
-      setRecipes(json.results || []);
+      const allRecipes = json.results || [];
+
+      // Split recipes into favorites and others
+      const favoriteRecipesList = allRecipes
+        .filter((r: any) => favoriteIds.includes(r.id))
+        .map((r: any) => ({ ...r, is_favorite: true }));
+      const otherRecipesList = allRecipes
+        .filter((r: any) => !favoriteIds.includes(r.id))
+        .map((r: any) => ({ ...r, is_favorite: false }));
+
+      // Concatenate: favorites first, then others
+      setRecipes([...favoriteRecipesList, ...otherRecipesList]);
     } catch (error) {
       console.error("Loading error:", error);
     } finally {
@@ -191,11 +218,13 @@ function RecipeScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-    fetchTypes();
-    fetchUserData();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchData();
+      fetchTypes();
+      fetchUserData();
+    }, [])
+  );
 
   // Récupère dynamiquement le nom de la famille et de la liste de courses
   const families = userData?.families || [];
@@ -343,6 +372,8 @@ function RecipeScreen() {
             <RecipeCard
               item={item}
               listName={selectedShoppingList?.name || ""}
+              familyId={selectedFamily?.id || null}
+              favoriteIds={favoriteIds}
             />
           )}
         />
@@ -484,6 +515,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  cardFav: {
+    width: "15%",
   },
   cardInfo: {
     flex: 1,
