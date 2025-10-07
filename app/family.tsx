@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -9,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Colors } from "../constants/theme";
 
 export default function FamilyScreen() {
   const router = useRouter();
@@ -110,6 +112,15 @@ export default function FamilyScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.fixedHeader}>
+        <TouchableOpacity
+          style={styles.logoutIcon}
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={28} color={Colors.dark.text} />
+        </TouchableOpacity>
+        <Text style={styles.homeTitle}>FAMILY</Text>
+      </View>
       <View style={styles.familyBlock}>
         <Text style={styles.familyTitle}>Famille</Text>
         {familyName ? (
@@ -209,37 +220,62 @@ export default function FamilyScreen() {
 }
 
 const styles = StyleSheet.create({
+  fixedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: Colors.dark.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 32,
+    paddingBottom: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.dark.tertiary,
+  },
+  homeTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: Colors.dark.text,
+    letterSpacing: 1,
+  },
+  logoutIcon: {
+    padding: 4,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#121212",
+    backgroundColor: Colors.dark.primary,
     paddingLeft: 24,
     paddingRight: 24,
     justifyContent: "flex-start",
   },
   familyBlock: {
-    backgroundColor: "#232323",
+    backgroundColor: Colors.dark.secondary,
     borderRadius: 16,
     padding: 18,
-    shadowColor: "#000",
+    shadowColor: Colors.dark.primary,
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
-    marginTop: 32,
+    marginTop: 75,
   },
   familyTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ECEDEE",
+    color: Colors.dark.text,
     marginBottom: 6,
   },
   familyName: {
     fontSize: 16,
-    color: "#fff",
+    color: Colors.dark.text,
     marginBottom: 8,
   },
   membersTitle: {
     fontSize: 15,
-    color: "#9BA1A6",
+    color: Colors.dark.icon,
     marginBottom: 8,
     marginLeft: 2,
   },
@@ -250,8 +286,8 @@ const styles = StyleSheet.create({
   },
   member: {
     fontSize: 15,
-    color: "#fff",
-    backgroundColor: "#131313",
+    color: Colors.dark.text,
+    backgroundColor: Colors.dark.tertiary,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -268,8 +304,8 @@ const styles = StyleSheet.create({
   },
   searchUserInput: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
-    color: "#fff",
+    backgroundColor: Colors.dark.tertiary,
+    color: Colors.dark.text,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -277,29 +313,29 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   searchUserButton: {
-    backgroundColor: "orangered",
+    backgroundColor: Colors.dark.action,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
   searchUserButtonText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontWeight: "bold",
     fontSize: 15,
   },
   searchResultsBlock: {
     marginTop: 8,
-    backgroundColor: "#232323",
+    backgroundColor: Colors.dark.secondary,
     borderRadius: 8,
     padding: 8,
   },
   searchResultText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 14,
     marginBottom: 4,
   },
   addUserButton: {
-    backgroundColor: "orangered",
+    backgroundColor: Colors.dark.action,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 2,
@@ -308,7 +344,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addUserButtonText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontWeight: "bold",
     fontSize: 18,
     textAlign: "center",
@@ -321,8 +357,8 @@ const styles = StyleSheet.create({
   },
   createFamilyInput: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
-    color: "#fff",
+    backgroundColor: Colors.dark.tertiary,
+    color: Colors.dark.text,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -330,7 +366,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   createFamilyButton: {
-    backgroundColor: "orangered",
+    backgroundColor: Colors.dark.action,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -338,7 +374,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   createFamilyButtonText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontWeight: "bold",
     fontSize: 15,
   },

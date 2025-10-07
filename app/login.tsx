@@ -38,7 +38,6 @@ const LoginScreen = () => {
         body: JSON.stringify({ username: email, password }),
       });
       if (!response.ok) {
-        console.log(response);
         throw new Error("Identifiants invalides");
       }
       const data = await response.json();
@@ -54,8 +53,6 @@ const LoginScreen = () => {
     }
   };
   const handleRegister = () => {
-    // Logique de connexion ici
-    console.log("Connexion avec", email, password);
     router.push("/register");
   };
 

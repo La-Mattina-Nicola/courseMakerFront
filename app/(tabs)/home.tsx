@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -17,8 +18,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/theme";
 import { removeTokens } from "../../utils/auth";
 
+const api = Constants.expoConfig?.extra?.API_URL ?? "";
+
 function RecipeScreen() {
-  const api = process.env.EXPO_PUBLIC_API;
   const router = useRouter();
 
   // Ajoute l'état pour les données utilisateur
@@ -59,10 +61,45 @@ function RecipeScreen() {
         }
       );
       const data = await res.json();
-      console.log(data);
       setIngredientResults(data.results || []);
     } catch (e) {
       setIngredientResults([]);
+    }
+  };
+
+  const setAddUnitToCart = async () => {
+    if (!addQty) return;
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const res = await fetch(`${api}shopping-list-items/`, {
+        method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shopping_list: selectedShoppingList.id,
+          ingredient: selectedIngredient.id,
+          quantity: Number(addQty),
+          unit: 1, // id de l'unité
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error("Erreur lors de l'ajout: " + text);
+      }
+      await fetchUserData();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setShowAddModal(false);
+      setSelectedIngredient(null);
+      setAddQty("");
+      setAddUnit("");
+      setIngredientResults([]);
+      setSearchIngredient("");
     }
   };
 
@@ -84,17 +121,40 @@ function RecipeScreen() {
         data = await res.json();
       } else {
         const text = await res.text();
-        console.log("API response:", res.status, text);
         throw new Error("Réponse inattendue du serveur.");
       }
       if (!res.ok) {
-        console.log("TEST", JSON.stringify(data, null, 2));
         throw new Error(
           "Erreur lors de la récupération des données utilisateur: " +
             JSON.stringify(data)
         );
       }
       setUserData(data);
+      // Synchronise la sélection si la liste existe toujours
+      if (selectedShoppingList) {
+        const updatedList = data.shopping_lists.find(
+          (l: any) => l.id === selectedShoppingList.id
+        );
+        if (updatedList) {
+          setSelectedShoppingList(updatedList);
+        }
+        // Si la liste sélectionnée n'existe plus, sélectionne la dernière liste
+        else if (data.shopping_lists.length > 0) {
+          setSelectedShoppingList(
+            data.shopping_lists[data.shopping_lists.length - 1]
+          );
+        } else {
+          setSelectedShoppingList(null);
+        }
+      }
+      // Si aucune liste n'est sélectionnée, sélectionne la dernière par défaut
+      else if (data.shopping_lists.length > 0) {
+        setSelectedShoppingList(
+          data.shopping_lists[data.shopping_lists.length - 1]
+        );
+      } else {
+        setSelectedShoppingList(null);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -124,11 +184,14 @@ function RecipeScreen() {
   // Ne pas écraser la sélection courante à chaque reload
   React.useEffect(() => {
     if (
-      shoppingLists.length > 0 &&
-      (!selectedShoppingList ||
-        !shoppingLists.some((l: any) => l.id === selectedShoppingList.id))
+      userData &&
+      selectedShoppingList &&
+      userData.shopping_lists?.length > 0
     ) {
-      setSelectedShoppingList(shoppingLists[0]);
+      const updatedList = userData.shopping_lists.find(
+        (l: any) => l.id === selectedShoppingList.id
+      );
+      if (updatedList) setSelectedShoppingList(updatedList);
     }
   }, [userData]);
   // Regroupe et fusionne les items par type et nom d'ingrédient
@@ -390,7 +453,9 @@ function RecipeScreen() {
                                 styles.unitItem,
                                 addUnit === unit && styles.unitItemSelected,
                               ]}
-                              onPress={() => setAddUnit(unit)}
+                              onPress={() => {
+                                setAddUnit(unit);
+                              }}
                             >
                               <Text
                                 style={{
@@ -409,57 +474,9 @@ function RecipeScreen() {
                       <View style={styles.addIngredientBlockBtnsRow}>
                         <TouchableOpacity
                           style={styles.modalAddButton}
-                          onPress={async () => {
-                            if (
-                              !shoppingLists.length ||
-                              !selectedIngredient ||
-                              !addQty ||
-                              !addUnit
-                            )
-                              return;
-                            setLoading(true);
-                            try {
-                              const token = await AsyncStorage.getItem(
-                                "accessToken"
-                              );
-                              const listId = shoppingLists[0].id;
-                              const res = await fetch(
-                                `${api}shopping-lists/${listId}/add-item/`,
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    Authorization: token
-                                      ? `Bearer ${token}`
-                                      : "",
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    ingredient_id: selectedIngredient.id,
-                                    quantity: Number(addQty),
-                                    unit: addUnit,
-                                  }),
-                                }
-                              );
-                              if (!res.ok) {
-                                const text = await res.text();
-                                throw new Error(
-                                  "Erreur lors de l'ajout: " + text
-                                );
-                              }
-                              await fetchUserData();
-                            } catch (e: any) {
-                              setError(e.message);
-                            } finally {
-                              setLoading(false);
-                              setShowAddModal(false);
-                              setSelectedIngredient(null);
-                              setAddQty("");
-                              setAddUnit("");
-                              setIngredientResults([]);
-                              setSearchIngredient("");
-                            }
+                          onPress={() => {
+                            setAddUnitToCart();
                           }}
-                          disabled={!addQty || !addUnit}
                         >
                           <Text style={{ color: "#fff", fontWeight: "bold" }}>
                             Ajouter
@@ -693,12 +710,12 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingHorizontal: 24,
     borderBottomWidth: 2,
-    borderBottomColor: "#333",
+    borderBottomColor: Colors.dark.tertiary,
   },
   homeTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#fff",
+    color: Colors.dark.text,
     letterSpacing: 1,
   },
   logoutIcon: {
@@ -708,7 +725,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.secondary,
     borderRadius: 16,
     padding: 18,
-    shadowColor: "#000",
+    shadowColor: Colors.dark.primary,
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
@@ -724,7 +741,7 @@ const styles = StyleSheet.create({
   blockTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#ECEDEE",
+    color: Colors.dark.text,
     marginBottom: 8,
   },
   familyButton: {
@@ -737,7 +754,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   familyButtonText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontWeight: "bold",
     fontSize: 15,
     textAlign: "center",
@@ -747,12 +764,12 @@ const styles = StyleSheet.create({
   },
   familyName: {
     fontSize: 16,
-    color: "#fff",
+    color: Colors.dark.text,
     marginBottom: 8,
   },
   familyMember: {
     fontSize: 14,
-    color: "#fff",
+    color: Colors.dark.text,
     marginBottom: 4,
   },
   shoppingList: {
@@ -775,7 +792,7 @@ const styles = StyleSheet.create({
     minWidth: 48,
   },
   memberTileText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 15,
     textAlign: "center",
     fontWeight: "bold",
@@ -808,10 +825,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: Colors.dark.tertiary,
   },
   typePickerText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 15,
   },
   createListButton: {
@@ -830,7 +847,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.action,
     padding: 12,
     marginBottom: 18,
-    shadowColor: "#000",
+    shadowColor: Colors.dark.primary,
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 2,
@@ -843,13 +860,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: Colors.dark.primary,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 3,
   },
   itemText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 16,
     flex: 1,
     marginBottom: 2,
@@ -857,7 +874,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   itemQty: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 15,
     marginRight: 12,
     fontWeight: "bold",
@@ -870,11 +887,11 @@ const styles = StyleSheet.create({
   },
   collapseIcon: {
     fontSize: 18,
-    color: "#9BA1A6",
+    color: Colors.dark.icon,
     marginLeft: 8,
   },
   ingredientType: {
-    color: "#9BA1A6",
+    color: Colors.dark.icon,
     fontSize: 15,
     fontWeight: "bold",
     marginLeft: 2,
@@ -951,7 +968,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   selectedIngredientName: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontSize: 16,
     fontWeight: "bold",
     marginHorizontal: 8,
@@ -1000,7 +1017,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: Colors.dark.tertiary,
   },
   unitItemSelected: {
     backgroundColor: Colors.dark.action,
@@ -1033,7 +1050,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   deleteButtonText: {
-    color: "#fff",
+    color: Colors.dark.text,
     fontWeight: "bold",
     fontSize: 16,
   },

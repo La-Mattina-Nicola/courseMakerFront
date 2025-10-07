@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -14,249 +14,176 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/theme";
-import { removeTokens } from "../../utils/auth";
 
-interface RecipeType {
+type Ingredient = {
   id: number;
   name: string;
-}
+  type?: IngredientType;
+};
 
-// Define the Recipe interface
-interface Recipe {
+type IngredientType = {
   id: number;
   name: string;
-  type: RecipeType;
-  ingredients: any[]; // Replace 'any' with your ingredient type if available
-  is_favorite?: boolean;
-}
+};
 
-interface RecipeCardProps {
-  item: Recipe;
-  listName: string;
-  familyId: number | null;
-  favoriteIds: number[];
-}
-
-const RecipeCard: React.FC<RecipeCardProps> = ({
-  item,
-  listName,
-  familyId,
-  favoriteIds,
-}) => {
-  const router = useRouter();
-
-  // Fonction pour ajouter la recette à la liste de courses
-  const addToShoppingList = async () => {
-    try {
-      const api = process.env.EXPO_PUBLIC_API;
-      const token = process.env.EXPO_PUBLIC_TOKEN;
-      const res = await fetch(`${api}shopping-lists/add-recipe/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-
-          Authorization: `${token}`,
-        },
-        body: JSON.stringify({
-          recipe_id: Number(item.id),
-          list_name: listName,
-        }),
-      });
-      const text = await res.text();
-      console.log("API response:", res.status, text);
-      if (!res.ok) {
-        const errorData = await res.json();
-        console.log("Erreur: " + JSON.stringify(errorData));
-      } else {
-        console.log("Recette ajoutée à la liste de courses !");
-      }
-    } catch (e) {
-      console.log("Erreur lors de l'ajout à la liste de courses");
-    }
-  };
-
-  return (
-    <TouchableOpacity
-      onPress={() =>
-        router.push({
-          pathname: "/recipeForm",
-          params: {
-            mode: "edit",
-            id: item.id.toString(),
-          },
-        })
-      }
-    >
-      <View style={styles.cardRow}>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardTitle}>{item.name}</Text>
-          <Text style={styles.cardSubtitle}>{item.type.name}</Text>
-          <Text style={styles.cardSubtitle}>
-            {item.ingredients.length} ingredients
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.addToListButton}
-          onPress={(e) => {
-            e.stopPropagation && e.stopPropagation();
-            addToShoppingList();
-          }}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+type ApiResponse = {
+  results: Ingredient[];
+  count: number;
+  next: string | null;
+  previous: string | null;
 };
 
 const PAGE_SIZE = 10;
 
-function RecipeScreen() {
-  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
-  const api = process.env.EXPO_PUBLIC_API;
-  const token = process.env.EXPO_PUBLIC_TOKEN;
-
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [types, setTypes] = useState<RecipeType[]>([]);
+const IngredientScreen: React.FC = () => {
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingredientTypes, setIngredientTypes] = useState<IngredientType[]>([]);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const [selectedType, setSelectedType] = useState<RecipeType | null>(null);
-  const [userData, setUserData] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
+  const [selectedType, setSelectedType] = useState<IngredientType | null>(null);
+
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  // Filter only, do not sort (already sorted by favorites first)
-  const filtered = recipes.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) &&
-      (!selectedType || r.type.id === selectedType.id)
-  );
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const api = Constants.expoConfig?.extra?.API_URL ?? "";
   const router = useRouter();
 
-  const fetchData = async () => {
+  // Famille et liste de course
+  const [userData, setUserData] = useState<any>(null);
+  const [families, setFamilies] = useState<any[]>([]);
+  const [selectedFamily, setSelectedFamily] = useState<any>(null);
+  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
+  const [shoppingLists, setShoppingLists] = useState<any[]>([]);
+  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
+  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
+
+  // Fetch user data (familles et listes)
+  const fetchUserData = async () => {
     try {
-      setLoading(true);
-      // Fetch families to get favorite_recipes FIRST
-      const famRes = await fetch(`${api}families/`, {
+      const token = await AsyncStorage.getItem("accessToken");
+      const res = await fetch(`${api}user-data/`, {
         headers: {
+          Authorization: token ? `Bearer ${token}` : "",
           "Content-Type": "application/json",
-          Authorization: `${token}`,
         },
       });
-      const famJson = await famRes.json();
-      // Use first family
-      const favoriteRecipes =
-        famJson.favorite_recipes || famJson[0]?.favorite_recipes || [];
-      const ids = favoriteRecipes.map((r: any) => r.id);
-      setFavoriteIds(ids);
+      const data = await res.json();
+      setUserData(data);
+      setFamilies(data.families || []);
+      setShoppingLists(data.shopping_lists || []);
+      if (data.families?.length > 0) setSelectedFamily(data.families[0]);
+      if (data.shopping_lists?.length > 0)
+        setSelectedShoppingList(data.shopping_lists[0]);
+    } catch {
+      setUserData(null);
+      setFamilies([]);
+      setShoppingLists([]);
+    }
+  };
 
-      // Fetch recipes avec pagination
-      const response = await fetch(
-        `${api}recipes/?page=${page}&page_size=${PAGE_SIZE}`,
-        {
+  // Fetch ingredient types (fetch all pages)
+  const fetchIngredientTypes = async () => {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      let allTypes: IngredientType[] = [];
+      let nextUrl: string | null = `${api}ingredient-types/`;
+      while (nextUrl) {
+        const res = await fetch(nextUrl, {
           headers: {
+            Authorization: token ? `Bearer ${token}` : "",
             "Content-Type": "application/json",
-            Authorization: `${token}`,
           },
-        }
-      );
-      const json = await response.json();
-      const allRecipes = json.results || [];
-      setTotal(json.count || 0);
+        });
+        const json: any = await res.json();
+        allTypes = allTypes.concat(json.results || []);
+        nextUrl = json.next;
+      }
+      setIngredientTypes(allTypes);
+    } catch {
+      setIngredientTypes([]);
+    }
+  };
 
-      // Split recipes into favorites and others
-      const favoriteRecipesList = allRecipes
-        .filter((r: any) => favoriteIds.includes(r.id))
-        .map((r: any) => ({ ...r, is_favorite: true }));
-      const otherRecipesList = allRecipes
-        .filter((r: any) => !favoriteIds.includes(r.id))
-        .map((r: any) => ({ ...r, is_favorite: false }));
-
-      // Concatenate: favorites first, then others
-      setRecipes([...favoriteRecipesList, ...otherRecipesList]);
+  // Fetch ingredients
+  const fetchIngredients = async (pageNumber: number) => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      let url = `${api}ingredients/?page=${pageNumber}`;
+      if (selectedType) url += `&type=${selectedType.id}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json",
+        },
+      });
+      const json: ApiResponse = await res.json();
+      setIngredients(json.results);
+      setTotal(json.count);
     } catch (error) {
-      console.error("Loading error:", error);
+      setIngredients([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchTypes = async () => {
-    try {
-      const response = await fetch(`${api}recipe-types/`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `${token}`,
-        },
-      });
-      const json = await response.json();
-      setTypes(json.results || []);
-    } catch (error) {
-      console.error("Type loading error:", error);
-    }
-  };
-
-  const fetchUserData = async () => {
-    try {
-      setUserLoading(true);
-      const accessToken = await AsyncStorage.getItem("accessToken");
-      const res = await fetch(`${api}user-data/`, {
-        headers: {
-          Authorization: accessToken ? `Bearer ${accessToken}` : "",
-          "Content-Type": "application/json",
-        },
-      });
-      const contentType = res.headers.get("content-type");
-      let data;
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error("Réponse inattendue du serveur: " + text);
-      }
-      setUserData(data);
-    } catch (e) {
-      setUserData(null);
-    } finally {
-      setUserLoading(false);
-    }
-  };
-
-  useFocusEffect(
-    React.useCallback(() => {
-      fetchData();
-      fetchTypes();
-      fetchUserData();
-    }, [page])
-  );
-
-  // Récupère dynamiquement le nom de la famille et de la liste de courses
-  const families = userData?.families || [];
-  const [selectedFamily, setSelectedFamily] = useState<any>(null);
-  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
-  const shoppingLists = userData?.shopping_lists || [];
-  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
-  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
   useEffect(() => {
-    if (families.length > 0) {
-      setSelectedFamily(families[0]);
-    }
-    if (shoppingLists.length > 0) {
-      setSelectedShoppingList(shoppingLists[0]);
-    }
-  }, [userData]);
+    fetchUserData();
+    fetchIngredientTypes();
+  }, []);
+
+  useEffect(() => {
+    fetchIngredients(page);
+  }, [page, selectedType]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  // Recherche locale
+  const filtered = ingredients.filter((i) =>
+    i.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Add ingredient to selected shopping list using new POST endpoint
+  async function addToShoppingList(
+    ingredientId: number,
+    quantity: number = 1,
+    unitId?: number
+  ) {
+    if (!selectedShoppingList?.id || !ingredientId || !unitId) return;
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      await fetch(`${api}api/shopping-list-items/`, {
+        method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shopping_list: selectedShoppingList.id,
+          ingredient: ingredientId,
+          quantity,
+          unit: unitId,
+        }),
+      });
+      // Optionally show a success message or update UI
+    } catch (error) {
+      // Optionally handle error
+    }
+  }
+
+  // For now, pick a default unitId (first from ingredientTypes if available)
+  const defaultUnitId =
+    ingredientTypes.length > 0 ? ingredientTypes[0].id : undefined;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header similaire à recipe.tsx */}
       <View style={styles.fixedHeader}>
-        <Text style={styles.homeTitle}>RECETTE</Text>
+        <Text style={styles.homeTitle}>INGRÉDIENTS</Text>
         <TouchableOpacity
           style={styles.logoutIcon}
           onPress={async () => {
-            await removeTokens();
+            await AsyncStorage.removeItem("accessToken");
             router.replace("/login");
           }}
         >
@@ -321,6 +248,8 @@ function RecipeScreen() {
           ))}
         </View>
       )}
+
+      {/* Barre de recherche + bouton type */}
       <View style={styles.searchRow}>
         <TouchableOpacity
           style={styles.typeButton}
@@ -343,13 +272,14 @@ function RecipeScreen() {
       </View>
       {showTypePicker && (
         <View style={styles.typePickerBlock}>
-          {types.map((type) => (
+          {ingredientTypes.map((type) => (
             <TouchableOpacity
               key={type.id}
               style={styles.typePickerItem}
               onPress={() => {
                 setSelectedType(type);
                 setShowTypePicker(false);
+                setPage(1); // reset page on type change
               }}
             >
               <Text style={styles.typePickerText}>{type.name}</Text>
@@ -360,7 +290,7 @@ function RecipeScreen() {
 
       {loading ? (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="orangered" />
+          <ActivityIndicator size="large" color={Colors.dark.action} />
         </View>
       ) : (
         <FlatList
@@ -369,16 +299,15 @@ function RecipeScreen() {
           numColumns={1}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
-            <RecipeCard
+            <IngredientCard
               item={item}
-              listName={selectedShoppingList?.name || ""}
-              familyId={selectedFamily?.id || null}
-              favoriteIds={favoriteIds}
+              onAdd={() => addToShoppingList(item.id, 1, defaultUnitId)}
             />
           )}
         />
       )}
 
+      {/* Pagination */}
       <View style={styles.pagination}>
         <TouchableOpacity
           style={[styles.pageButton, page === 1 && { opacity: 0.5 }]}
@@ -398,16 +327,23 @@ function RecipeScreen() {
           <Text style={styles.pageButtonText}>Suivant</Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => router.push("/recipeForm?mode=create")}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
-}
+};
+
+const IngredientCard: React.FC<{ item: Ingredient; onAdd: () => void }> = ({
+  item,
+  onAdd,
+}) => (
+  <View style={styles.cardRow}>
+    <View style={styles.cardInfo}>
+      <Text style={styles.cardTitle}>{item.name}</Text>
+    </View>
+    <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
+      <Ionicons name="add" size={20} color="#fff" />
+    </TouchableOpacity>
+  </View>
+);
 
 const styles = StyleSheet.create({
   infoBlocksRow: {
@@ -438,27 +374,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  listNameInput: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "bold",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    marginTop: 2,
-    width: "100%",
-    textAlign: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.tertiary,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.dark.primary,
-    justifyContent: "center",
     paddingHorizontal: 24,
   },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   fixedHeader: {
     position: "absolute",
     top: 0,
@@ -488,6 +408,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
+    marginTop: 0,
   },
   searchContainer: {
     flexDirection: "row",
@@ -548,81 +469,45 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
-  cardFav: {
-    width: "15%",
-  },
   cardInfo: {
     flex: 1,
     minWidth: 0,
   },
-  card: {
-    flex: 1,
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 10,
-    padding: 12,
-    margin: 6,
-  },
   cardTitle: { fontSize: 16, fontWeight: "500", color: Colors.dark.text },
   cardSubtitle: { fontSize: 12, color: Colors.dark.icon, marginTop: 8 },
-  addButton: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    backgroundColor: Colors.dark.action,
-    borderRadius: 30,
-    padding: 16,
-    elevation: 5,
-  },
-
-  addToListText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 14,
-    marginLeft: 8,
-  },
+  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   pagination: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.tertiary,
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    marginBottom: 12,
+    justifyContent: "center",
+    marginTop: 16,
   },
   pageButton: {
-    flex: 1,
     backgroundColor: Colors.dark.action,
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    marginHorizontal: 8,
     alignItems: "center",
-    marginHorizontal: 4,
+    justifyContent: "center",
   },
   pageButtonText: {
     color: Colors.dark.text,
     fontWeight: "bold",
-    fontSize: 16,
+    fontSize: 15,
   },
-  pageInfo: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "500",
-  },
+  pageInfo: { marginHorizontal: 12, fontSize: 16 },
 
   addToListButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.dark.action,
     borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 12,
+    padding: 4,
     alignSelf: "stretch",
     justifyContent: "center",
     height: "100%",
   },
 });
 
-export default RecipeScreen;
+export default IngredientScreen;

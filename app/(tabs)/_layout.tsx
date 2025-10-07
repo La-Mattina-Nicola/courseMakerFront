@@ -3,12 +3,12 @@ import React from "react";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { Colors } from "@/constants/theme";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 export default function TabLayout() {
   return (
     <Tabs
-      initialRouteName="home"
       screenOptions={{
         tabBarActiveTintColor: Colors.dark.tint,
         tabBarStyle: {
@@ -35,6 +35,19 @@ export default function TabLayout() {
           title: "Recipe",
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="food-bank" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ingredient"
+        options={{
+          title: "Ingredient",
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons
+              name="food-variant"
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
