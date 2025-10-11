@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -10,15 +11,21 @@ import {
 } from "react-native";
 
 const RegisterScreen = () => {
-  const api = process.env.EXPO_PUBLIC_API;
+  const api = Constants?.expoConfig?.extra?.API_URL || "";
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleRegister = async () => {
+    setError("");
+    if (!username || !email || !password || !confirmPassword) {
+      setError("Veuillez remplir tous les champs.");
+      return;
+    }
     if (password !== confirmPassword) {
-      console.log("Les mots de passe ne correspondent pas");
+      setError("Les mots de passe ne correspondent pas.");
       return;
     }
     try {
@@ -36,13 +43,12 @@ const RegisterScreen = () => {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Erreur API:", errorData);
-        alert(Object.values(errorData).flat().join("\n"));
+        setError(Object.values(errorData).flat().join("\n"));
         return;
       }
       router.replace("/login");
     } catch (error) {
-      console.error(error);
+      setError("Erreur réseau. Veuillez vérifier votre connexion.");
     }
   };
 
@@ -57,6 +63,8 @@ const RegisterScreen = () => {
       keyboardVerticalOffset={64}
     >
       <Text style={styles.title}>Inscription</Text>
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <TextInput
         style={styles.input}
@@ -134,6 +142,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 8,
+  },
+  errorText: {
+    color: "#ff4d4f",
+    textAlign: "center",
+    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: "500",
   },
   buttonText: {
     color: "#fff",

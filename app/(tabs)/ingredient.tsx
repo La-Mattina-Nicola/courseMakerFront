@@ -5,7 +5,9 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,48 +17,20 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/theme";
 
-type Ingredient = {
-  id: number;
-  name: string;
-  type?: IngredientType;
-};
+const PAGE_SIZE = 20;
 
-type IngredientType = {
-  id: number;
-  name: string;
-};
+const IngredientCard = ({ item, onAdd }: { item: any; onAdd: () => void }) => (
+  <View style={styles.cardRow}>
+    <View style={styles.cardInfo}>
+      <Text style={styles.cardTitle}>{item.name}</Text>
+    </View>
+    <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
+      <Ionicons name="add" size={20} color="#fff" />
+    </TouchableOpacity>
+  </View>
+);
 
-type ApiResponse = {
-  results: Ingredient[];
-  count: number;
-  next: string | null;
-  previous: string | null;
-};
-
-const PAGE_SIZE = 10;
-
-const IngredientScreen: React.FC = () => {
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [ingredientTypes, setIngredientTypes] = useState<IngredientType[]>([]);
-  const [showTypePicker, setShowTypePicker] = useState(false);
-  const [selectedType, setSelectedType] = useState<IngredientType | null>(null);
-
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const api = Constants.expoConfig?.extra?.API_URL ?? "";
-  const router = useRouter();
-
-  // Famille et liste de course
-  const [userData, setUserData] = useState<any>(null);
-  const [families, setFamilies] = useState<any[]>([]);
-  const [selectedFamily, setSelectedFamily] = useState<any>(null);
-  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
-  const [shoppingLists, setShoppingLists] = useState<any[]>([]);
-  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
-  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
-
+const IngredientScreen = () => {
   // Fetch user data (familles et listes)
   const fetchUserData = async () => {
     try {
@@ -75,17 +49,16 @@ const IngredientScreen: React.FC = () => {
       if (data.shopping_lists?.length > 0)
         setSelectedShoppingList(data.shopping_lists[0]);
     } catch {
-      setUserData(null);
       setFamilies([]);
       setShoppingLists([]);
     }
   };
 
-  // Fetch ingredient types (fetch all pages)
+  // Fetch all ingredient types (all pages)
   const fetchIngredientTypes = async () => {
     try {
       const token = await AsyncStorage.getItem("accessToken");
-      let allTypes: IngredientType[] = [];
+      let allTypes: any[] = [];
       let nextUrl: string | null = `${api}ingredient-types/`;
       while (nextUrl) {
         const res = await fetch(nextUrl, {
@@ -104,22 +77,45 @@ const IngredientScreen: React.FC = () => {
     }
   };
 
-  // Fetch ingredients
-  const fetchIngredients = async (pageNumber: number) => {
+  // Fetch all ingredients (all pages)
+  const fetchAllIngredients = async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("accessToken");
-      let url = `${api}ingredients/?page=${pageNumber}`;
-      if (selectedType) url += `&type=${selectedType.id}`;
+      let allIngredients: any[] = [];
+      let nextUrl: string | null = `${api}ingredients/`;
+      while (nextUrl) {
+        const res = await fetch(nextUrl, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "Content-Type": "application/json",
+          },
+        });
+        const json: any = await res.json();
+        allIngredients = allIngredients.concat(json.results || []);
+        nextUrl = json.next;
+      }
+      setIngredients(allIngredients);
+    } catch (error) {
+      setIngredients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Recherche d'ingrédients par nom via l'API
+  const searchIngredientsByName = async (name: string) => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const url = `${api}ingredients/?search=${encodeURIComponent(name)}`;
       const res = await fetch(url, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
           "Content-Type": "application/json",
         },
       });
-      const json: ApiResponse = await res.json();
-      setIngredients(json.results);
-      setTotal(json.count);
+      const json: any = await res.json();
+      setIngredients(json.results || []);
     } catch (error) {
       setIngredients([]);
     } finally {
@@ -127,53 +123,126 @@ const IngredientScreen: React.FC = () => {
     }
   };
 
+  const searchIngredientsByType = async (typeId: number) => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const url = `${api}ingredients/?type=${typeId}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "Content-Type": "application/json",
+        },
+      });
+      const json: any = await res.json();
+      setIngredients(json.results || []);
+    } catch (error) {
+      setIngredients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
+  const [families, setFamilies] = useState<any[]>([]);
+  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
+  const [shoppingLists, setShoppingLists] = useState<any[]>([]);
+  const [selectedFamily, setSelectedFamily] = useState<any>(null);
+  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [ingredientTypes, setIngredientTypes] = useState<any[]>([]);
+  const [selectedType, setSelectedType] = useState<any>(null);
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const api = Constants?.expoConfig?.extra?.API_URL || "";
+
+  const [userData, setUserData] = useState<any>(null);
+  const router = useRouter();
+
   useEffect(() => {
     fetchUserData();
     fetchIngredientTypes();
+    fetchAllIngredients();
+
+    if (families.length > 0) {
+      setSelectedFamily(families[0]);
+    }
+    if (shoppingLists.length > 0) {
+      setSelectedShoppingList(shoppingLists[0]);
+    }
   }, []);
 
-  useEffect(() => {
-    fetchIngredients(page);
-  }, [page, selectedType]);
+  // Pagination n'est plus utilisée côté UI
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  // Recherche locale adaptée :
+  const filtered = ingredients
+    .filter((i) => {
+      if (selectedType) {
+        if (typeof i.type === "number") {
+          return i.type === selectedType.id;
+        } else if (typeof i.type === "object" && i.type?.id) {
+          return i.type.id === selectedType.id;
+        }
+        return false;
+      }
+      return true;
+    })
+    .filter((i) => {
+      const searchLower = search.toLowerCase();
+      const nameMatch = i.name.toLowerCase().includes(searchLower);
+      let typeMatch = false;
+      if (typeof i.type === "object" && i.type?.name) {
+        typeMatch = i.type.name.toLowerCase().includes(searchLower);
+      }
+      return nameMatch || typeMatch;
+    });
 
-  // Recherche locale
-  const filtered = ingredients.filter((i) =>
-    i.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  // Add ingredient to selected shopping list using new POST endpoint
-  async function addToShoppingList(
+  const addToShoppingList = async (
     ingredientId: number,
     quantity: number = 1,
-    unitId?: number
-  ) {
-    if (!selectedShoppingList?.id || !ingredientId || !unitId) return;
+    unitId: number = 1
+  ) => {
+
+    if (!ingredientId || !unitId) {
+      return;
+    }
     try {
       const token = await AsyncStorage.getItem("accessToken");
-      await fetch(`${api}api/shopping-list-items/`, {
+      const url = `${api}shopping-list-items/`;
+
+      // Build body conditionally
+      const body: any = {
+        ingredient: ingredientId,
+        quantity,
+        unit: unitId,
+      };
+      if (selectedShoppingList && selectedShoppingList.id) {
+        body.shopping_list = selectedShoppingList.id;
+      }
+
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          shopping_list: selectedShoppingList.id,
-          ingredient: ingredientId,
-          quantity,
-          unit: unitId,
-        }),
+        body: JSON.stringify(body),
       });
-      // Optionally show a success message or update UI
+      const text = await response.text();
+      if (!response.ok) {
+      } else {
+        Alert.alert(
+          "Succès",
+          `${
+            ingredients.find((i) => i.id === ingredientId)?.name ||
+            "L'ingrédient"
+          } a été ajouté à ${selectedShoppingList.name}`
+        );
+      }
     } catch (error) {
-      // Optionally handle error
     }
-  }
-
-  // For now, pick a default unitId (first from ingredientTypes if available)
-  const defaultUnitId =
-    ingredientTypes.length > 0 ? ingredientTypes[0].id : undefined;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -267,83 +336,144 @@ const IngredientScreen: React.FC = () => {
             placeholderTextColor="#666"
             value={search}
             onChangeText={setSearch}
+            returnKeyType="search"
           />
+          <TouchableOpacity
+            onPress={() => {
+              if (search.trim()) {
+                searchIngredientsByName(search.trim());
+              }
+            }}
+            style={{ marginLeft: 8 }}
+          >
+            <Ionicons name="send" size={20} color={Colors.dark.action} />
+          </TouchableOpacity>
         </View>
       </View>
+
       {showTypePicker && (
         <View style={styles.typePickerBlock}>
-          {ingredientTypes.map((type) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+            style={{ maxHeight: 60 }}
+          >
             <TouchableOpacity
-              key={type.id}
-              style={styles.typePickerItem}
+              style={[
+                styles.typeTile,
+                !selectedType && styles.typeTileSelected,
+              ]}
               onPress={() => {
-                setSelectedType(type);
+                setSelectedType(null);
                 setShowTypePicker(false);
-                setPage(1); // reset page on type change
+                fetchAllIngredients();
               }}
             >
-              <Text style={styles.typePickerText}>{type.name}</Text>
+              <Text
+                style={[
+                  styles.typeTileText,
+                  !selectedType && styles.typeTileTextSelected,
+                ]}
+              >
+                Tous les types
+              </Text>
             </TouchableOpacity>
-          ))}
+            {ingredientTypes.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.typeTile,
+                  selectedType?.id === type.id && styles.typeTileSelected,
+                ]}
+                onPress={() => {
+                  setSelectedType(type);
+                  setShowTypePicker(false);
+                  searchIngredientsByType(type.id);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.typeTileText,
+                    selectedType?.id === type.id && styles.typeTileTextSelected,
+                  ]}
+                >
+                  {type.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {ingredientTypes.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.typeTile,
+                  selectedType?.id === type.id && styles.typeTileSelected,
+                ]}
+                onPress={() => {
+                  setSelectedType(type);
+                  setShowTypePicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.typeTileText,
+                    selectedType?.id === type.id && styles.typeTileTextSelected,
+                  ]}
+                >
+                  {type.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
+      {/* Liste des ingrédients */}
       {loading ? (
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color={Colors.dark.action} />
+        </View>
+      ) : filtered.length === 0 ? (
+        <View style={styles.loaderContainer}>
+          <Text style={{ color: Colors.dark.text, marginBottom: 16 }}>
+            Aucun ingrédient trouvé.
+          </Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              router.push({ pathname: "/ingredientForm", params: { search } });
+            }}
+          >
+            <View style={styles.searchRow}>
+              <Ionicons name="add" size={28} color="#fff" />
+              <Text
+                style={{ color: "#fff", marginLeft: 8, fontWeight: "bold" }}
+              >
+                Créer l'ingrédient
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id.toString()}
-          numColumns={1}
-          contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
             <IngredientCard
               item={item}
-              onAdd={() => addToShoppingList(item.id, 1, defaultUnitId)}
+              onAdd={() => addToShoppingList(item.id)}
             />
           )}
+          contentContainerStyle={{ paddingBottom: 80 }}
         />
       )}
-
-      {/* Pagination */}
-      <View style={styles.pagination}>
-        <TouchableOpacity
-          style={[styles.pageButton, page === 1 && { opacity: 0.5 }]}
-          onPress={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1 || loading}
-        >
-          <Text style={styles.pageButtonText}>Précédent</Text>
-        </TouchableOpacity>
-        <Text style={styles.pageInfo}>
-          Page {page} / {totalPages}
-        </Text>
-        <TouchableOpacity
-          style={[styles.pageButton, page === totalPages && { opacity: 0.5 }]}
-          onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages || loading}
-        >
-          <Text style={styles.pageButtonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 };
-
-const IngredientCard: React.FC<{ item: Ingredient; onAdd: () => void }> = ({
-  item,
-  onAdd,
-}) => (
-  <View style={styles.cardRow}>
-    <View style={styles.cardInfo}>
-      <Text style={styles.cardTitle}>{item.name}</Text>
-    </View>
-    <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
-      <Ionicons name="add" size={20} color="#fff" />
-    </TouchableOpacity>
-  </View>
-);
 
 const styles = StyleSheet.create({
   infoBlocksRow: {
@@ -459,6 +589,30 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     fontSize: 15,
   },
+  typeTile: {
+    backgroundColor: Colors.dark.tertiary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 4,
+    alignItems: "center",
+    minWidth: 48,
+    borderWidth: 2,
+    borderColor: Colors.dark.tertiary,
+  },
+  typeTileSelected: {
+    backgroundColor: Colors.dark.action,
+    borderColor: Colors.dark.action,
+  },
+  typeTileText: {
+    color: Colors.dark.text,
+    fontSize: 15,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  typeTileTextSelected: {
+    color: "#fff",
+  },
   grid: { gap: 1 },
   cardRow: {
     flexDirection: "row",
@@ -497,7 +651,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   pageInfo: { marginHorizontal: 12, fontSize: 16 },
-
   addToListButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -507,6 +660,15 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     justifyContent: "center",
     height: "100%",
+  },
+  addButton: {
+    position: "absolute",
+    bottom: 24,
+    right: 24,
+    backgroundColor: Colors.dark.action,
+    borderRadius: 30,
+    padding: 16,
+    elevation: 5,
   },
 });
 

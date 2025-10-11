@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -23,12 +24,18 @@ const LoginScreen = () => {
     };
     checkToken();
   }, []);
-  const api = process.env.EXPO_PUBLIC_API;
+  const api = Constants?.expoConfig?.extra?.API_URL;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async () => {
+    setError("");
+    if (!email || !password) {
+      setError("Veuillez remplir tous les champs.");
+      return;
+    }
     try {
       const response = await fetch(`${api}login/`, {
         method: "POST",
@@ -38,18 +45,18 @@ const LoginScreen = () => {
         body: JSON.stringify({ username: email, password }),
       });
       if (!response.ok) {
-        throw new Error("Identifiants invalides");
+        setError("Identifiants invalides. Veuillez réessayer.");
+        return;
       }
       const data = await response.json();
       if (data.access && data.refresh) {
         await storeTokens(data.access, data.refresh);
         router.replace("/home");
       } else {
-        throw new Error("Tokens manquants dans la réponse");
+        setError("Erreur de connexion. Veuillez réessayer plus tard.");
       }
     } catch (error) {
-      console.error(error);
-      // Afficher une erreur à l'utilisateur si besoin
+      setError("Erreur réseau. Veuillez vérifier votre connexion.");
     }
   };
   const handleRegister = () => {
@@ -64,6 +71,7 @@ const LoginScreen = () => {
     >
       <Text style={styles.title}>Connexion</Text>
 
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <TextInput
         style={styles.input}
         placeholder="Nom d'utilisateur"
@@ -141,6 +149,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "500",
     fontSize: 16,
+  },
+  errorText: {
+    color: "#ff4d4f",
+    textAlign: "center",
+    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: "500",
   },
   link: {
     color: "#888",

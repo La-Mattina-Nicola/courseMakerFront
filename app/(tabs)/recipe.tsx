@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -46,16 +48,20 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
   const router = useRouter();
 
   // Fonction pour ajouter la recette à la liste de courses
+  const [showSuccess, setShowSuccess] = useState(false);
+
   const addToShoppingList = async () => {
     try {
-      const api = process.env.EXPO_PUBLIC_API;
-      const token = process.env.EXPO_PUBLIC_TOKEN;
+      const api = Constants?.expoConfig?.extra?.API_URL || "";
+      const token = await AsyncStorage.getItem("accessToken");
+      if (!token) {
+        return;
+      }
       const res = await fetch(`${api}shopping-lists/add-recipe/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-
-          Authorization: `${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           recipe_id: Number(item.id),
@@ -63,59 +69,80 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
         }),
       });
       const text = await res.text();
-      console.log("API response:", res.status, text);
       if (!res.ok) {
-        const errorData = await res.json();
-        console.log("Erreur: " + JSON.stringify(errorData));
       } else {
-        console.log("Recette ajoutée à la liste de courses !");
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
       }
     } catch (e) {
-      console.log("Erreur lors de l'ajout à la liste de courses");
     }
   };
 
+  // Success modal
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => setShowSuccess(false);
+  }, []);
+
   return (
-    <TouchableOpacity
-      onPress={() =>
-        router.push({
-          pathname: "/recipeForm",
-          params: {
-            mode: "edit",
-            id: item.id.toString(),
-          },
-        })
-      }
-    >
-      <View style={styles.cardRow}>
-        <View style={styles.cardInfo}>
-          <Text style={styles.cardTitle}>{item.name}</Text>
-          <Text style={styles.cardSubtitle}>{item.type.name}</Text>
-          <Text style={styles.cardSubtitle}>
-            {item.ingredients.length} ingredients
-          </Text>
+    <>
+      <TouchableOpacity
+        onPress={() =>
+          router.push({
+            pathname: "/recipeForm",
+            params: {
+              mode: "edit",
+              id: item.id.toString(),
+            },
+          })
+        }
+      >
+        <View style={styles.cardRow}>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>{item.name}</Text>
+            <Text style={styles.cardSubtitle}>{item.type.name}</Text>
+            <Text style={styles.cardSubtitle}>
+              {item.ingredients.length} ingredients
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addToListButton}
+            onPress={(e) => {
+              e.stopPropagation && e.stopPropagation();
+              addToShoppingList();
+            }}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.addToListButton}
-          onPress={(e) => {
-            e.stopPropagation && e.stopPropagation();
-            addToShoppingList();
+      </TouchableOpacity>
+      {showSuccess && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: 30,
+            left: 20,
+            right: 20,
+            backgroundColor: "#2ecc40",
+            padding: 16,
+            borderRadius: 12,
+            alignItems: "center",
+            zIndex: 999,
+            elevation: 10,
           }}
         >
-          <Ionicons name="add" size={20} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>
+            Recette ajoutée à la liste de courses !
+          </Text>
+        </View>
+      )}
+    </>
   );
 };
 
-const PAGE_SIZE = 10;
-
-function RecipeScreen() {
+const RecipeScreen: React.FC = () => {
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
-  const api = process.env.EXPO_PUBLIC_API;
-  const token = process.env.EXPO_PUBLIC_TOKEN;
-
+  const api = Constants?.expoConfig?.extra?.API_URL || "";
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -124,59 +151,76 @@ function RecipeScreen() {
   const [selectedType, setSelectedType] = useState<RecipeType | null>(null);
   const [userData, setUserData] = useState<any>(null);
   const [userLoading, setUserLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  // Filter only, do not sort (already sorted by favorites first)
-  const filtered = recipes.filter(
-    (r) =>
-      r.name.toLowerCase().includes(search.toLowerCase()) &&
-      (!selectedType || r.type.id === selectedType.id)
-  );
+  const [typeError, setTypeError] = useState<string | null>(null);
   const router = useRouter();
 
-  const fetchData = async () => {
+  // Recherche locale adaptée (comme ingredient.tsx)
+  const filtered = recipes
+    .filter((r) => {
+      if (selectedType) {
+        if (typeof r.type === "number") {
+          return r.type === selectedType.id;
+        } else if (typeof r.type === "object" && r.type?.id) {
+          return r.type.id === selectedType.id;
+        }
+        return false;
+      }
+      return true;
+    })
+    .filter((r) => {
+      const searchLower = search.toLowerCase();
+      const nameMatch = r.name.toLowerCase().includes(searchLower);
+      let typeMatch = false;
+      if (typeof r.type === "object" && r.type?.name) {
+        typeMatch = r.type.name.toLowerCase().includes(searchLower);
+      }
+      return nameMatch || typeMatch;
+    });
+
+  // Nouvelle fonction pour charger toutes les recettes (toutes pages)
+  const fetchAllRecipes = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const token = await AsyncStorage.getItem("accessToken");
       // Fetch families to get favorite_recipes FIRST
       const famRes = await fetch(`${api}families/`, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `${token}`,
+          Authorization: token ? `Bearer ${token}` : "",
         },
       });
       const famJson = await famRes.json();
-      // Use first family
       const favoriteRecipes =
         famJson.favorite_recipes || famJson[0]?.favorite_recipes || [];
       const ids = favoriteRecipes.map((r: any) => r.id);
       setFavoriteIds(ids);
 
-      // Fetch recipes avec pagination
-      const response = await fetch(
-        `${api}recipes/?page=${page}&page_size=${PAGE_SIZE}`,
-        {
+      // Fetch all recipes (all pages)
+      let allRecipes: any[] = [];
+      let nextUrl: string | null = `${api}recipes/?page_size=1000`;
+      while (nextUrl) {
+        const res = await fetch(nextUrl, {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `${token}`,
+            Authorization: token ? `Bearer ${token}` : "",
           },
-        }
-      );
-      const json = await response.json();
-      const allRecipes = json.results || [];
-      setTotal(json.count || 0);
+        });
+        const json: any = await res.json();
+        allRecipes = allRecipes.concat(json.results || []);
+        nextUrl = json.next;
+      }
 
       // Split recipes into favorites and others
       const favoriteRecipesList = allRecipes
-        .filter((r: any) => favoriteIds.includes(r.id))
+        .filter((r: any) => ids.includes(r.id))
         .map((r: any) => ({ ...r, is_favorite: true }));
       const otherRecipesList = allRecipes
-        .filter((r: any) => !favoriteIds.includes(r.id))
+        .filter((r: any) => !ids.includes(r.id))
         .map((r: any) => ({ ...r, is_favorite: false }));
 
-      // Concatenate: favorites first, then others
       setRecipes([...favoriteRecipesList, ...otherRecipesList]);
     } catch (error) {
-      console.error("Loading error:", error);
+      setRecipes([]);
     } finally {
       setLoading(false);
     }
@@ -184,22 +228,29 @@ function RecipeScreen() {
 
   const fetchTypes = async () => {
     try {
-      const response = await fetch(`${api}recipe-types/`, {
+      setTypeError(null);
+      const url = `${api}recipe-types/`;
+      const accessToken = await AsyncStorage.getItem("accessToken");
+      const response = await fetch(url, {
         headers: {
+          Authorization: accessToken ? `Bearer ${accessToken}` : "",
           "Content-Type": "application/json",
-          Authorization: `${token}`,
         },
       });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
       const json = await response.json();
       setTypes(json.results || []);
-    } catch (error) {
-      console.error("Type loading error:", error);
+    } catch (error: any) {
+      setTypeError(error?.message || String(error));
     }
   };
 
   const fetchUserData = async () => {
+    setUserLoading(true);
     try {
-      setUserLoading(true);
       const accessToken = await AsyncStorage.getItem("accessToken");
       const res = await fetch(`${api}user-data/`, {
         headers: {
@@ -225,10 +276,10 @@ function RecipeScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchData();
+      fetchAllRecipes();
       fetchTypes();
       fetchUserData();
-    }, [page])
+    }, [])
   );
 
   // Récupère dynamiquement le nom de la famille et de la liste de courses
@@ -246,8 +297,6 @@ function RecipeScreen() {
       setSelectedShoppingList(shoppingLists[0]);
     }
   }, [userData]);
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -343,18 +392,58 @@ function RecipeScreen() {
       </View>
       {showTypePicker && (
         <View style={styles.typePickerBlock}>
-          {types.map((type) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+            style={{ maxHeight: 60 }}
+          >
             <TouchableOpacity
-              key={type.id}
-              style={styles.typePickerItem}
+              style={[
+                styles.typeTile,
+                !selectedType && styles.typeTileSelected,
+              ]}
               onPress={() => {
-                setSelectedType(type);
+                setSelectedType(null);
                 setShowTypePicker(false);
               }}
             >
-              <Text style={styles.typePickerText}>{type.name}</Text>
+              <Text
+                style={[
+                  styles.typeTileText,
+                  !selectedType && styles.typeTileTextSelected,
+                ]}
+              >
+                Tous les types
+              </Text>
             </TouchableOpacity>
-          ))}
+            {types.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.typeTile,
+                  selectedType?.id === type.id && styles.typeTileSelected,
+                ]}
+                onPress={() => {
+                  setSelectedType(type);
+                  setShowTypePicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.typeTileText,
+                    selectedType?.id === type.id && styles.typeTileTextSelected,
+                  ]}
+                >
+                  {type.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -379,37 +468,55 @@ function RecipeScreen() {
         />
       )}
 
-      <View style={styles.pagination}>
-        <TouchableOpacity
-          style={[styles.pageButton, page === 1 && { opacity: 0.5 }]}
-          onPress={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1 || loading}
-        >
-          <Text style={styles.pageButtonText}>Précédent</Text>
-        </TouchableOpacity>
-        <Text style={styles.pageInfo}>
-          Page {page} / {totalPages}
-        </Text>
-        <TouchableOpacity
-          style={[styles.pageButton, page === totalPages && { opacity: 0.5 }]}
-          onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages || loading}
-        >
-          <Text style={styles.pageButtonText}>Suivant</Text>
-        </TouchableOpacity>
-      </View>
-
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => router.push("/recipeForm?mode=create")}
       >
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
+      {typeError && (
+        <View
+          style={{
+            backgroundColor: "#fee",
+            padding: 12,
+            margin: 12,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#b00", fontWeight: "bold" }}>
+            Erreur chargement types : {typeError}
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
+  typeTile: {
+    backgroundColor: Colors.dark.tertiary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 4,
+    alignItems: "center",
+    minWidth: 48,
+    borderWidth: 2,
+    borderColor: Colors.dark.tertiary,
+  },
+  typeTileSelected: {
+    backgroundColor: Colors.dark.action,
+    borderColor: Colors.dark.action,
+  },
+  typeTileText: {
+    color: Colors.dark.text,
+    fontSize: 15,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  typeTileTextSelected: {
+    color: "#fff",
+  },
   infoBlocksRow: {
     flexDirection: "row",
     justifyContent: "space-between",

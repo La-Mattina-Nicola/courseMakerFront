@@ -1,16 +1,21 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "@/constants/theme";
+import { getAccessToken } from "@/utils/auth";
+import { MaterialIcons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import {
   ActivityIndicator,
   Alert,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 // ...existing types...
 type Ingredient = {
@@ -42,8 +47,7 @@ type IngredientEntry = {
   selected: boolean;
 };
 
-const api = process.env.EXPO_PUBLIC_API;
-const token = process.env.EXPO_PUBLIC_TOKEN;
+const api = Constants?.expoConfig?.extra?.API_URL || "";
 
 const RecipeForm = () => {
   // Type de plat (RecipeType)
@@ -61,24 +65,19 @@ const RecipeForm = () => {
   const [ingredientResults, setIngredientResults] = useState<Ingredient[]>([]);
   const [name, setName] = useState("");
   const [ingredients, setIngredients] = useState<IngredientEntry[]>([]);
-  const [availableIngredients, setAvailableIngredients] = useState<
-    Ingredient[]
-  >([]);
   const [availableUnits, setAvailableUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   // Modal pour la sélection d'unité
   const [unitModalVisible, setUnitModalVisible] = useState(false);
   const [unitModalIndex, setUnitModalIndex] = useState<number | null>(null);
   // Ingredient type creation modal state
-  const [ingredientTypes, setIngredientTypes] = useState<
-    { id: number; name: string }[]
-  >([]);
   const [newIngredientName, setNewIngredientName] = useState("");
   const [selectedIngredientType, setSelectedIngredientType] = useState<{
     id: number;
     name: string;
   } | null>(null);
   const [showCreateIngredient, setShowCreateIngredient] = useState(false);
+  const [pendingTypeId, setPendingTypeId] = useState<number | null>(null);
 
   const router = useRouter();
   const { mode, id } = useLocalSearchParams<{
@@ -89,26 +88,19 @@ const RecipeForm = () => {
   useEffect(() => {
     const fetchMeta = async () => {
       try {
+        const token = await getAccessToken();
         const headers = {
           "Content-Type": "application/json",
-          Authorization: `${token}`,
+          Authorization: token ? `Bearer ${token}` : "",
         };
-        const [ingRes, unitRes, typeRes] = await Promise.all([
-          fetch(`${api}ingredients/`, { headers }),
+        const [unitRes, typeRes] = await Promise.all([
           fetch(`${api}units/`, { headers }),
           fetch(`${api}recipe-types/`, { headers }),
         ]);
-        const ingType = ingRes.headers.get("content-type") || "";
         const unitType = unitRes.headers.get("content-type") || "";
         const typeType = typeRes.headers.get("content-type") || "";
-        let ingJson = null;
         let unitJson = null;
         let typeJson = null;
-        if (ingType.includes("application/json")) {
-          ingJson = await ingRes.json();
-        } else {
-          throw new Error("Erreur API ingrédients");
-        }
         if (unitType.includes("application/json")) {
           unitJson = await unitRes.json();
         } else {
@@ -119,13 +111,10 @@ const RecipeForm = () => {
         } else {
           throw new Error("Erreur API types");
         }
-        setAvailableIngredients(ingJson.results || []);
         setAvailableUnits(unitJson.results || []);
         setAvailableTypes(typeJson.results || []);
-        if (typeJson.results && typeJson.results.length > 0)
-          setSelectedType(typeJson.results[0]);
+        // Ne sélectionne pas ici, laisse le useEffect suivant gérer la sélection
       } catch (err) {
-        console.log("Error loading metadata:", err);
       } finally {
         setLoading(false);
       }
@@ -137,9 +126,10 @@ const RecipeForm = () => {
     const fetchRecipe = async () => {
       if (mode === "edit" && id) {
         try {
+          const token = await getAccessToken();
           const headers = {
             "Content-Type": "application/json",
-            Authorization: `${token}`,
+            Authorization: token ? `Bearer ${token}` : "",
           };
           const res = await fetch(`${api}recipes/${id}/`, { headers });
           const json = await res.json();
@@ -152,31 +142,57 @@ const RecipeForm = () => {
               selected: true,
             }))
           );
-          // Préselectionne le bon type de plat si disponible
-          if (json.type && availableTypes.length > 0) {
-            const foundType = availableTypes.find((t) => t.id === json.type.id);
-            if (foundType) setSelectedType(foundType);
-          }
+          // Stocke l'id du type à sélectionner
+          if (json.type) setPendingTypeId(json.type.id);
         } catch (err) {
-          console.error("Error loading recipe", err);
         }
       }
     };
     fetchRecipe();
-  }, [mode, id, availableTypes]);
+  }, [mode, id]);
+
+  // Sélectionne le type de plat dès que les deux sont chargés
+  useEffect(() => {
+    if (pendingTypeId && availableTypes.length > 0) {
+      const foundType = availableTypes.find((t) => t.id === pendingTypeId);
+      if (foundType) setSelectedType(foundType);
+      setPendingTypeId(null);
+    } else if (
+      !pendingTypeId &&
+      availableTypes.length > 0 &&
+      mode === "create"
+    ) {
+      setSelectedType(availableTypes[0]);
+    }
+  }, [availableTypes, pendingTypeId, mode]);
 
   // Logic for modals and handlers
-  const handleIngredientSearch = () => {
-    const query = ingredientSearch.trim().toLowerCase();
+  const [loadingIngredientSearch, setLoadingIngredientSearch] = useState(false);
+  const handleIngredientSearch = async () => {
+    const query = ingredientSearch.trim();
     if (query.length === 0) {
       setIngredientResults([]);
       return;
     }
-    setIngredientResults(
-      availableIngredients.filter((ing) =>
-        ing.name.toLowerCase().includes(query)
-      )
-    );
+    setLoadingIngredientSearch(true);
+    try {
+      const token = await getAccessToken();
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      };
+      const res = await fetch(
+        `${api}ingredients/?search=${encodeURIComponent(query)}`,
+        { headers }
+      );
+      if (!res.ok) throw new Error("Erreur API ingrédients");
+      const json = await res.json();
+      setIngredientResults(json.results || []);
+    } catch (err) {
+      setIngredientResults([]);
+    } finally {
+      setLoadingIngredientSearch(false);
+    }
   };
 
   const showIngredientPicker = (index: number) => {
@@ -248,63 +264,48 @@ const RecipeForm = () => {
     };
 
     try {
+      const token = await getAccessToken();
       const res = await fetch(`${api}recipes/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `${token}`,
+          Authorization: token ? `Bearer ${token}` : "",
         },
         body: JSON.stringify(payload),
       });
       const contentType = res.headers.get("content-type") || "";
       const text = await res.text();
-      console.log("API response:", res.status, text);
       if (!res.ok) {
         throw new Error("Erreur API: " + text);
       }
       let data = null;
       if (contentType.includes("application/json")) {
         data = JSON.parse(text);
-        console.log("Success:", data);
-      } else {
-        console.log("Réponse non JSON:", text);
       }
       router.back();
     } catch (err) {
-      console.error("Error submitting recipe", err);
       Alert.alert("Erreur", String(err));
     }
   };
 
-  // Load ingredient types when showing create ingredient UI
-  const fetchIngredientTypes = async () => {
-    try {
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `${token}`,
-      };
-      const res = await fetch(`${api}ingredient-types/`, { headers });
-      const json = await res.json();
-      setIngredientTypes(json.results || []);
-    } catch (err) {
-      console.error("Error loading ingredient types", err);
-    }
-  };
-
   // Create ingredient handler
-  const handleCreateIngredient = async () => {
-    console.log("test");
-    if (!ingredientSearch.trim() || !selectedIngredientType) return;
+  const handleCreateIngredient = async (options?: {
+    name?: string;
+    typeId?: number;
+  }) => {
+    const ingredientName = options?.name ?? ingredientSearch.trim();
+    const typeId = options?.typeId ?? selectedIngredientType?.id;
+    if (!ingredientName || !typeId) return;
     try {
+      const token = await getAccessToken();
       const headers = {
         "Content-Type": "application/json",
-        Authorization: `${token}`,
+        Authorization: token ? `Bearer ${token}` : "",
       };
       const body = JSON.stringify({
-        name: ingredientSearch.trim(),
-        type: selectedIngredientType.id, // send only the id
+        name: ingredientName,
+        type: typeId, // send only the id
       });
-      console.log(body);
       const res = await fetch(`${api}ingredients/`, {
         method: "POST",
         headers,
@@ -312,12 +313,9 @@ const RecipeForm = () => {
       });
       if (!res.ok) {
         const errorText = await res.text();
-        console.log("API error:", errorText);
         throw new Error("Erreur lors de la création de l'ingrédient");
       }
       const created = await res.json();
-      console.log("Réponse API:", created);
-      setAvailableIngredients([...availableIngredients, created]);
       if (ingredientModalIndex !== null) {
         updateIngredient(ingredientModalIndex, "ingredient", created);
       }
@@ -340,284 +338,238 @@ const RecipeForm = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>
-        {mode === "create" ? "Create Recipe" : "Edit Recipe"}
-      </Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Recipe Name"
-        placeholderTextColor="#666"
-        value={name}
-        onChangeText={setName}
-      />
-      {/* Sélection du type de plat */}
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{ color: "#fff", marginBottom: 6 }}>Type de plat :</Text>
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 8,
-            alignItems: "center",
-          }}
+      <View style={styles.fixedHeader}>
+        <TouchableOpacity
+          style={styles.logoutIcon}
+          onPress={() => router.back()}
         >
-          {availableTypes.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={{
-                backgroundColor:
-                  selectedType?.id === type.id ? "orangered" : "#333",
-                borderRadius: 8,
-                paddingVertical: 8,
-                paddingHorizontal: 16,
-                marginRight: 8,
-                marginBottom: 8,
-              }}
-              onPress={() => setSelectedType(type)}
-            >
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                {type.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{
-              backgroundColor: "#333",
-              borderRadius: 8,
-              padding: 8,
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 8,
-              marginBottom: 8,
-            }}
-            onPress={() => setTypeModalVisible(true)}
-            accessibilityLabel="Ajouter un type de plat"
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
+          <MaterialIcons name="arrow-back" size={28} color={Colors.dark.text} />
+        </TouchableOpacity>
+        <Text style={styles.homeTitle}>
+          {" "}
+          {mode === "create" ? "Création de recette" : "Edition de recette"}
+        </Text>
       </View>
-      {/* Modal ajout type de plat */}
-      {typeModalVisible && (
-        <View style={styles.typeModalOverlay}>
-          <View style={styles.typeModalContent}>
-            <Text style={styles.typeModalTitle}>Ajouter un type de plat</Text>
-            <TextInput
-              style={styles.typeModalInput}
-              placeholder="Nom du type"
-              placeholderTextColor="#888"
-              value={newTypeName}
-              onChangeText={setNewTypeName}
-              autoFocus
-            />
-            <TouchableOpacity
-              style={styles.typeModalAddButton}
-              onPress={handleAddType}
-            >
-              <Text style={styles.typeModalAddButtonText}>Ajouter</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.typeModalClose}
-              onPress={() => setTypeModalVisible(false)}
-            >
-              <Text style={styles.typeModalCloseText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-      {ingredients.map((entry, index) => (
-        <View key={index} style={styles.ingredientRow}>
-          <TextInput
-            style={styles.quantityInput}
-            placeholder="Qty"
-            keyboardType="numeric"
-            value={entry.quantity}
-            onChangeText={(val) => updateIngredient(index, "quantity", val)}
-          />
-          <TouchableOpacity
-            style={styles.selector}
-            onPress={() => showUnitPicker(index)}
+
+      <ScrollView>
+        <Text style={styles.title}></Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Nom de la recette"
+          placeholderTextColor="#666"
+          value={name}
+          onChangeText={setName}
+        />
+        {/* Sélection du type de plat */}
+        <View style={{ marginBottom: 16 }}>
+          <Text style={{ color: "#fff", marginBottom: 6 }}>Type de plat :</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              flexDirection: "row",
+              gap: 8,
+              alignItems: "center",
+            }}
           >
-            <Text style={styles.selectorText}>
-              {entry.unit?.name || "Unit"}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.selectorIngredient}
-            onPress={() => showIngredientPicker(index)}
-          >
-            <Text style={styles.selectorText}>
-              {entry.ingredient?.name || "Select Ingredient"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-      {/* Modal de sélection d'ingrédient avec recherche */}
-      {ingredientModalVisible && (
-        <View style={styles.ingredientModalOverlay}>
-          <View style={styles.ingredientModalContent}>
-            <Text style={styles.ingredientModalTitle}>
-              Choisir un ingrédient
-            </Text>
-            <View style={styles.ingredientModalSearchRow}>
-              <TextInput
-                style={styles.ingredientModalSearchInput}
-                placeholder="Rechercher..."
-                placeholderTextColor="#888"
-                value={ingredientSearch}
-                onChangeText={setIngredientSearch}
-                autoFocus={!showCreateIngredient}
-                editable={!showCreateIngredient}
-              />
+            {availableTypes.map((type) => (
               <TouchableOpacity
-                style={styles.ingredientModalSendButton}
-                onPress={handleIngredientSearch}
-                disabled={showCreateIngredient}
-              >
-                <Ionicons name="send" size={22} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.ingredientModalResults}>
-              {ingredientResults.length === 0 && ingredientSearch.trim() ? (
-                <Text
-                  style={{ color: "#aaa", textAlign: "center", marginTop: 12 }}
-                ></Text>
-              ) : (
-                ingredientResults.map((ing) => (
-                  <TouchableOpacity
-                    key={ing.id}
-                    style={styles.ingredientModalItem}
-                    onPress={() => {
-                      if (ingredientModalIndex !== null) {
-                        updateIngredient(
-                          ingredientModalIndex,
-                          "ingredient",
-                          ing
-                        );
-                      }
-                      setIngredientModalVisible(false);
-                    }}
-                  >
-                    <Text style={styles.ingredientModalItemText}>
-                      {ing.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
-            {/* Button to show create ingredient UI */}
-            {!showCreateIngredient && (
-              <TouchableOpacity
-                style={[styles.ingredientModalSendButton, { marginTop: 8 }]}
-                onPress={() => {
-                  setShowCreateIngredient(true);
-                  fetchIngredientTypes();
+                key={type.id}
+                style={{
+                  backgroundColor:
+                    selectedType?.id === type.id ? Colors.dark.action : "#333",
+                  borderRadius: 8,
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  marginRight: 8,
+                  marginBottom: 8,
                 }}
+                onPress={() => setSelectedType(type)}
               >
-                <Text style={{ color: "#fff" }}>
-                  Créer un nouvel ingrédient
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  {type.name}
                 </Text>
               </TouchableOpacity>
-            )}
-            {/* Create ingredient UI - separate input */}
-            {showCreateIngredient && (
-              <View style={{ width: "100%", marginTop: 12 }}>
-                <Text style={{ color: "#fff", marginTop: 8 }}>Type :</Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginTop: 4,
-                  }}
+            ))}
+          </ScrollView>
+        </View>
+
+        {ingredients.map((entry, index) => (
+          <View key={index} style={styles.ingredientRow}>
+            <TextInput
+              style={styles.quantityInput}
+              placeholder="Quantité"
+              keyboardType="numeric"
+              value={entry.quantity}
+              onChangeText={(val) => updateIngredient(index, "quantity", val)}
+            />
+            <TouchableOpacity
+              style={styles.selector}
+              onPress={() => showUnitPicker(index)}
+            >
+              <Text style={styles.selectorText}>
+                {entry.unit?.name || "unité ?"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.selectorIngredient}
+              onPress={() => showIngredientPicker(index)}
+            >
+              <Text style={styles.selectorText}>
+                {entry.ingredient?.name || "Sélection de l'ingrédient"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        {/* Modal de sélection d'ingrédient avec recherche */}
+        {ingredientModalVisible && (
+          <View style={styles.ingredientModalOverlay}>
+            <View style={styles.ingredientModalContent}>
+              <Text style={styles.ingredientModalTitle}>
+                Choisir un ingrédient
+              </Text>
+              <View style={styles.ingredientModalSearchRow}>
+                <TextInput
+                  style={styles.ingredientModalSearchInput}
+                  placeholder="Rechercher..."
+                  placeholderTextColor="#888"
+                  value={ingredientSearch}
+                  onChangeText={setIngredientSearch}
+                  autoFocus={!showCreateIngredient}
+                />
+                <TouchableOpacity
+                  style={styles.ingredientModalSendButton}
+                  onPress={handleIngredientSearch}
+                  disabled={loadingIngredientSearch}
                 >
-                  {ingredientTypes.map((type) => (
+                  <MaterialIcons
+                    name="send"
+                    size={24}
+                    color={Colors.dark.action}
+                  />
+                </TouchableOpacity>
+              </View>
+              {/* Affiche les résultats de la recherche d'ingrédients */}
+              {ingredientResults.length > 0 && !showCreateIngredient && (
+                <View style={styles.ingredientModalResults}>
+                  {ingredientResults.map((ing) => (
                     <TouchableOpacity
-                      key={type.id}
-                      style={{
-                        backgroundColor:
-                          selectedIngredientType?.id === type.id
-                            ? "orangered"
-                            : "#333",
-                        borderRadius: 8,
-                        paddingVertical: 8,
-                        paddingHorizontal: 16,
-                        marginRight: 8,
-                        marginBottom: 8,
+                      key={ing.id}
+                      style={styles.ingredientModalItem}
+                      onPress={() => {
+                        if (ingredientModalIndex !== null) {
+                          updateIngredient(
+                            ingredientModalIndex,
+                            "ingredient",
+                            ing
+                          );
+                        }
+                        setIngredientModalVisible(false);
                       }}
-                      onPress={() => setSelectedIngredientType(type)}
                     >
-                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                        {type.name}
+                      <Text style={styles.ingredientModalItemText}>
+                        {ing.name}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+              )}
+              {/* Redirige vers ingredientForm si aucun résultat */}
+              {!showCreateIngredient && (
                 <TouchableOpacity
-                  style={[styles.ingredientModalSendButton, { marginTop: 12 }]}
                   onPress={() => {
-                    console.log("Bouton créer ingrédient pressé");
-                    handleCreateIngredient();
+                    setIngredientModalVisible(false);
+                    setShowCreateIngredient(false);
+                    setNewIngredientName("");
+                    setSelectedIngredientType(null);
+                    router.push({
+                      pathname: "/ingredientForm",
+                      params: { search: ingredientSearch },
+                    });
                   }}
-                  disabled={!ingredientSearch.trim() || !selectedIngredientType}
+                  style={{ alignItems: "center", marginTop: 16 }}
                 >
-                  <Text style={{ color: "#fff" }}>Créer l'ingrédient</Text>
+                  <Text
+                    style={{
+                      color: "#aaa",
+                      textAlign: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    L'ingredient ne correspond pas ? Crée ton ingrédient.
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: Colors.dark.action,
+                      borderRadius: 8,
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                      Aller à la création
+                    </Text>
+                  </View>
                 </TouchableOpacity>
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.ingredientModalClose}
-              onPress={() => {
-                setIngredientModalVisible(false);
-                setShowCreateIngredient(false);
-                setNewIngredientName("");
-                setSelectedIngredientType(null);
-              }}
-            >
-              <Text style={styles.ingredientModalCloseText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-      {/* Modal de sélection d'unité */}
-      {unitModalVisible && (
-        <View style={styles.unitModalOverlay}>
-          <View style={styles.unitModalContent}>
-            <Text style={styles.unitModalTitle}>Choisir une unité</Text>
-            {availableUnits.map((unit) => (
+              )}
               <TouchableOpacity
-                key={unit.id}
-                style={styles.unitModalItem}
+                style={styles.ingredientModalClose}
                 onPress={() => {
-                  if (unitModalIndex !== null) {
-                    updateIngredient(unitModalIndex, "unit", unit);
-                  }
-                  setUnitModalVisible(false);
+                  setIngredientModalVisible(false);
+                  setShowCreateIngredient(false);
+                  setNewIngredientName("");
+                  setSelectedIngredientType(null);
+                  setIngredientResults([]);
                 }}
               >
-                <Text style={styles.unitModalItemText}>{unit.name}</Text>
+                <Text style={styles.ingredientModalCloseText}>Annuler</Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={styles.unitModalClose}
-              onPress={() => setUnitModalVisible(false)}
-            >
-              <Text style={styles.unitModalCloseText}>Annuler</Text>
-            </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      )}
-      {/* Show buttons only if no modal is open */}
-      {!ingredientModalVisible && !unitModalVisible && !typeModalVisible && (
-        <>
-          <TouchableOpacity style={styles.addButton} onPress={addIngredient}>
-            <Text>Add ingredient</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.submitButton} onPress={submitRecipe}>
-            <Text style={styles.submitText}>Save Recipe</Text>
-          </TouchableOpacity>
-        </>
-      )}
+        )}
+        {/* Modal de sélection d'unité */}
+        {unitModalVisible && (
+          <View style={styles.unitModalOverlay}>
+            <View style={styles.unitModalContent}>
+              <Text style={styles.unitModalTitle}>Choisir une unité</Text>
+              {availableUnits.map((unit) => (
+                <TouchableOpacity
+                  key={unit.id}
+                  style={styles.unitModalItem}
+                  onPress={() => {
+                    if (unitModalIndex !== null) {
+                      updateIngredient(unitModalIndex, "unit", unit);
+                    }
+                    setUnitModalVisible(false);
+                  }}
+                >
+                  <Text style={styles.unitModalItemText}>{unit.name}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.unitModalClose}
+                onPress={() => setUnitModalVisible(false)}
+              >
+                <Text style={styles.unitModalCloseText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        {/* Show buttons only if no modal is open */}
+        {!ingredientModalVisible && !unitModalVisible && !typeModalVisible && (
+          <>
+            <TouchableOpacity style={styles.addButton} onPress={addIngredient}>
+              <Text>Ajouter un ingrédient</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={submitRecipe}
+            >
+              <Text style={styles.submitText}>Sauvegarder la recette</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -648,6 +600,32 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  fixedHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: Colors.dark.secondary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 32,
+    paddingBottom: 12,
+    paddingHorizontal: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.dark.tertiary,
+    marginBottom: 16,
+  },
+  homeTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: Colors.dark.text,
+    letterSpacing: 1,
+  },
+  logoutIcon: {
+    padding: 4,
   },
   // ...existing styles for modals, buttons, etc...
   typeModalOverlay: {
@@ -684,7 +662,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typeModalAddButton: {
-    backgroundColor: "orangered",
+    backgroundColor: Colors.dark.action,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",
@@ -712,7 +690,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   quantityInput: {
-    width: 60,
+    width: 80,
     height: 40,
     borderColor: "#444",
     borderWidth: 1,
@@ -730,6 +708,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
+    width: 80,
   },
   selectorText: {
     color: "#fff",
@@ -745,12 +724,10 @@ const styles = StyleSheet.create({
   },
   ingredientModalOverlay: {
     position: "absolute",
-    top: 0,
+    top: 50,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
     alignItems: "center",
   },
   ingredientModalContent: {
@@ -783,7 +760,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   ingredientModalSendButton: {
-    backgroundColor: "orangered",
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -853,7 +829,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   addButton: {
-    backgroundColor: "orangered",
+    backgroundColor: Colors.dark.action,
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: "center",

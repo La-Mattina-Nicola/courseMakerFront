@@ -1,9 +1,6 @@
-import { getAccessToken } from "@/utils/auth";
 import { Redirect } from "expo-router";
+import React from "react";
+
 export default function Index() {
-  const token = getAccessToken();
-  if (token != null) {
-    return <Redirect href="/(tabs)/home" />;
-  }
   return <Redirect href="/login" />;
 }

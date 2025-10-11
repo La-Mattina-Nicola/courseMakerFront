@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
@@ -6,15 +7,14 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import GestureRecognizer from "react-native-swipe-gestures";
 import { Colors } from "../../constants/theme";
 import { removeTokens } from "../../utils/auth";
 
@@ -42,6 +42,9 @@ function RecipeScreen() {
   const [addUnit, setAddUnit] = React.useState<string>("");
   const [units, setUnits] = React.useState<string[]>([]);
 
+  const [swipeDirection, setSwipeDirection] = React.useState<string | null>(
+    null
+  );
   // Fonction de recherche d'ingrédient (API à adapter)
   const handleSearchIngredient = async (query: string) => {
     setSearchIngredient(query);
@@ -103,7 +106,6 @@ function RecipeScreen() {
     }
   };
 
-  // Déplace la fonction fetchUserData en dehors du useEffect pour pouvoir la rappeler
   const fetchUserData = React.useCallback(async () => {
     try {
       setLoading(true);
@@ -130,6 +132,11 @@ function RecipeScreen() {
         );
       }
       setUserData(data);
+      if (!data.families || data.families.length === 0) {
+        setSelectedFamily(null);
+      } else if (!selectedFamily) {
+        setSelectedFamily(data.families[0]);
+      }
       // Synchronise la sélection si la liste existe toujours
       if (selectedShoppingList) {
         const updatedList = data.shopping_lists.find(
@@ -177,21 +184,33 @@ function RecipeScreen() {
   // Prépare les données pour l'affichage
   const families = userData?.families || [];
   const shoppingLists = userData?.shopping_lists || [];
+  const [selectedFamily, setSelectedFamily] = React.useState<any>(null);
+  const [showFamilyPicker, setShowFamilyPicker] = React.useState(false);
   const [selectedShoppingList, setSelectedShoppingList] =
     React.useState<any>(null);
   const [showShoppingListPicker, setShowShoppingListPicker] =
     React.useState(false);
   // Ne pas écraser la sélection courante à chaque reload
   React.useEffect(() => {
-    if (
-      userData &&
-      selectedShoppingList &&
-      userData.shopping_lists?.length > 0
-    ) {
-      const updatedList = userData.shopping_lists.find(
-        (l: any) => l.id === selectedShoppingList.id
-      );
-      if (updatedList) setSelectedShoppingList(updatedList);
+    if (userData) {
+      // Shopping list
+      if (selectedShoppingList && userData.shopping_lists?.length > 0) {
+        const updatedList = userData.shopping_lists.find(
+          (l: any) => l.id === selectedShoppingList.id
+        );
+        if (updatedList) setSelectedShoppingList(updatedList);
+      }
+      // Famille
+      if (selectedFamily && userData.families?.length > 0) {
+        const updatedFam = userData.families.find(
+          (f: any) => f.id === selectedFamily.id
+        );
+        if (updatedFam) setSelectedFamily(updatedFam);
+      }
+      // Sélectionne la première famille par défaut si aucune sélection
+      if (!selectedFamily && userData.families?.length > 0) {
+        setSelectedFamily(userData.families[0]);
+      }
     }
   }, [userData]);
   // Regroupe et fusionne les items par type et nom d'ingrédient
@@ -304,29 +323,40 @@ function RecipeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 72 }}
       >
-        {/* Bloc famille */}
+        {/* Bloc famille avec sélection */}
         <View style={styles.block}>
           <Text style={styles.blockTitle}>Famille</Text>
-          {families.length === 0 ? (
-            <Text style={styles.familyMember}>Aucune famille</Text>
-          ) : (
-            families.map((fam: any) => (
-              <View key={fam.id} style={styles.familyMembersList}>
-                <Text style={styles.familyName}>{fam.name}</Text>
-                <View style={styles.membersRow}>
-                  {Array.isArray(fam.member_names) &&
-                  fam.member_names.length > 0 ? (
-                    fam.member_names.map((member: string) => (
-                      <View key={member} style={styles.memberTile}>
-                        <Text style={styles.memberTileText}>{member}</Text>
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={styles.familyMember}>Aucun membre</Text>
-                  )}
+          {families.length > 0 && (
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.listSelectorBlock,
+                  { borderWidth: 2, borderColor: Colors.dark.action },
+                ]}
+                onPress={() => setShowFamilyPicker((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.blockTitle}>
+                  {selectedFamily?.name || "Sélectionner une famille"}
+                </Text>
+              </TouchableOpacity>
+              {showFamilyPicker && families.length > 0 && (
+                <View style={styles.typePickerBlock}>
+                  {families.map((fam: any) => (
+                    <TouchableOpacity
+                      key={fam.id}
+                      style={styles.typePickerItem}
+                      onPress={() => {
+                        setSelectedFamily(fam);
+                        setShowFamilyPicker(false);
+                      }}
+                    >
+                      <Text style={styles.typePickerText}>{fam.name}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              </View>
-            ))
+              )}
+            </>
           )}
           <TouchableOpacity
             style={styles.familyButton}
@@ -334,7 +364,7 @@ function RecipeScreen() {
               router.push({
                 pathname: "/family",
                 params: {
-                  family: JSON.stringify(families[0]),
+                  family: JSON.stringify(selectedFamily || families[0]),
                   user: JSON.stringify(userData?.user),
                 },
               })
@@ -344,277 +374,155 @@ function RecipeScreen() {
           </TouchableOpacity>
         </View>
         {/* Bloc liste de courses */}
-        <View style={styles.block}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <TouchableOpacity
-              style={styles.listSelectorBlock}
-              onPress={() => setShowShoppingListPicker((v) => !v)}
-              activeOpacity={0.7}
+
+        {families.length > 0 && (
+          <View style={styles.block}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
-              <View style={styles.blockName}>
-                <Text style={styles.blockTitle}>
-                  {selectedShoppingList?.name || "Liste des courses"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.addIngredientButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Ionicons name="add" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          {showShoppingListPicker && shoppingLists.length > 0 && (
-            <View style={styles.typePickerBlock}>
-              {shoppingLists.map((list: any) => (
-                <TouchableOpacity
-                  key={list.id}
-                  style={styles.typePickerItem}
-                  onPress={() => {
-                    setSelectedShoppingList(list);
-                    setShowShoppingListPicker(false);
-                  }}
-                >
-                  <Text style={styles.typePickerText}>{list.name}</Text>
-                </TouchableOpacity>
-              ))}
               <TouchableOpacity
-                style={styles.createListButton}
-                onPress={() => {
-                  alert("Créer une nouvelle liste de courses");
-                }}
+                style={styles.listSelectorBlock}
+                onPress={() => setShowShoppingListPicker((v) => !v)}
+                activeOpacity={0.7}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                  + Nouvelle liste
-                </Text>
+                <View style={styles.blockName}>
+                  <Text style={styles.blockTitle}>
+                    {selectedShoppingList?.name || "Liste des courses"}
+                    {selectedShoppingList?.family?.name
+                      ? ` (${selectedShoppingList.family.name})`
+                      : ""}
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
-          )}
-          <Modal
-            visible={showAddModal}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => {
-              // Retire d'abord l'ingrédient sélectionné (donc la ligne quantité/unité)
-              setSelectedIngredient(null);
-              setAddQty("");
-              setAddUnit("");
-              setShowAddModal(false);
-              setIngredientResults([]);
-              setSearchIngredient("");
-            }}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Ajouter un ingrédient</Text>
-                <View style={styles.modalSearchRow}>
-                  <TextInput
-                    style={styles.modalSearchInput}
-                    placeholder="Rechercher un ingrédient..."
-                    placeholderTextColor="#888"
-                    value={searchIngredient}
-                    onChangeText={setSearchIngredient}
-                    autoFocus
-                  />
+            {showShoppingListPicker && shoppingLists.length > 0 && (
+              <View style={styles.typePickerBlock}>
+                {shoppingLists.map((list: any) => (
                   <TouchableOpacity
-                    style={styles.modalSendButton}
-                    onPress={() => handleSearchIngredient(searchIngredient)}
+                    key={list.id}
+                    style={styles.typePickerItem}
+                    onPress={() => {
+                      setSelectedShoppingList(list);
+                      setShowShoppingListPicker(false);
+                    }}
                   >
-                    <Ionicons name="send" size={22} color="#fff" />
+                    <Text style={styles.typePickerText}>{list.name}</Text>
                   </TouchableOpacity>
-                </View>
-                <View style={styles.modalResults}>
-                  {selectedIngredient ? (
-                    <View style={styles.addIngredientBlock}>
-                      <View style={styles.addIngredientBlockRow}>
-                        <TextInput
-                          style={styles.qtyInput}
-                          placeholder="Quantité"
-                          placeholderTextColor="#888"
-                          keyboardType="numeric"
-                          value={addQty}
-                          onChangeText={setAddQty}
-                        />
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={styles.unitPickerRow}
-                        >
-                          {units.map((unit) => (
-                            <TouchableOpacity
-                              key={unit}
-                              style={[
-                                styles.unitItem,
-                                addUnit === unit && styles.unitItemSelected,
-                              ]}
-                              onPress={() => {
-                                setAddUnit(unit);
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: addUnit === unit ? "#fff" : "#aaa",
-                                }}
-                              >
-                                {unit}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                        <Text style={styles.selectedIngredientName}>
-                          {selectedIngredient.name}
-                        </Text>
-                      </View>
-                      <View style={styles.addIngredientBlockBtnsRow}>
-                        <TouchableOpacity
-                          style={styles.modalAddButton}
-                          onPress={() => {
-                            setAddUnitToCart();
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                            Ajouter
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.modalCloseButton}
-                          onPress={() => {
-                            // Retire d'abord l'ingrédient sélectionné (donc la ligne quantité/unité)
-                            setSelectedIngredient(null);
-                            setAddQty("");
-                            setAddUnit("");
-                            setShowAddModal(false);
-                            setIngredientResults([]);
-                            setSearchIngredient("");
-                          }}
-                        >
-                          <Text style={{ color: "#fff" }}>Retour</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : ingredientResults.length === 0 && searchIngredient ? (
-                    <Text
-                      style={{
-                        color: "#aaa",
-                        textAlign: "center",
-                        marginTop: 12,
-                      }}
-                    >
-                      Aucun ingrédient trouvé
-                    </Text>
-                  ) : (
-                    ingredientResults.map((ing) => (
-                      <TouchableOpacity
-                        key={ing.id}
-                        style={styles.modalResultItem}
-                        onPress={async () => {
-                          setSelectedIngredient(ing);
-                          setAddQty("");
-                          setAddUnit("");
-                          // Appel API pour récupérer les unités de l'ingrédient
-                          try {
-                            const res = await fetch(
-                              `${api}ingredients/${ing.id}/units/`
-                            );
-                            if (res.ok) {
-                              const data = await res.json();
-                              if (
-                                Array.isArray(data.units) &&
-                                data.units.length > 0
-                              ) {
-                                setUnits(data.units);
-                                setAddUnit(data.units[0]); // préremplit avec la première unité
-                              } else {
-                                setUnits([]);
-                              }
-                            } else {
-                              setUnits([]);
-                            }
-                          } catch {
-                            setUnits([]);
-                          }
-                        }}
-                      >
-                        <Text style={{ color: "#fff", fontSize: 16 }}>
-                          {ing.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))
-                  )}
-                </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.createListButton}
+                  onPress={() => {
+                    alert("Créer une nouvelle liste de courses");
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                    + Nouvelle liste
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          </Modal>
-        </View>
-        <View style={styles.block}>
-          {Object.entries(grouped).map(([type, items]) => (
-            <View style={styles.blockTitle} key={type}>
-              <CollapsibleCategory
-                type={type}
-                items={items}
-                checkedItems={checkedItems}
-                toggleChecked={toggleChecked}
-              />
-            </View>
-          ))}
-        </View>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={async () => {
-            if (!selectedShoppingList) return;
-            try {
-              setLoading(true);
-              setError(null);
-              const token = await AsyncStorage.getItem("accessToken");
-              const listId = selectedShoppingList.id;
-              // Appel API pour supprimer tous les items de la liste de courses sélectionnée
-              const res = await fetch(
-                `${api}shopping-lists/${listId}/clear-items/`,
-                {
-                  method: "DELETE",
-                  headers: {
-                    Authorization: token ? `Bearer ${token}` : "",
-                  },
-                }
-              );
-              if (!res.ok) {
-                const text = await res.text();
-                throw new Error("Erreur lors de la suppression: " + text);
-              }
-              // Refetch les données après suppression
-              await fetchUserData();
-            } catch (e: any) {
-              setError(e.message);
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          <Text style={styles.deleteButtonText}>Supprimer tous les items</Text>
-        </TouchableOpacity>
+            )}
+            {shoppingLists.length > 0 && (
+              <View>
+                {Object.entries(grouped).map(([type, items]) => (
+                  <View style={styles.blockTitle} key={type}>
+                    <CollapsibleCategory
+                      type={type}
+                      items={items}
+                      checkedItems={checkedItems}
+                      toggleChecked={toggleChecked}
+                      fetchUserData={fetchUserData}
+                    />
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={async () => {
+                    if (!selectedShoppingList) return;
+                    try {
+                      setLoading(true);
+                      setError(null);
+                      const token = await AsyncStorage.getItem("accessToken");
+                      const listId = selectedShoppingList.id;
+                      const res = await fetch(
+                        `${api}shopping-lists/${listId}/clear-items/`,
+                        {
+                          method: "DELETE",
+                          headers: {
+                            Authorization: token ? `Bearer ${token}` : "",
+                          },
+                        }
+                      );
+                      if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(
+                          "Erreur lors de la suppression: " + text
+                        );
+                      }
+                      // Refetch les données après suppression
+                      await fetchUserData();
+                    } catch (e: any) {
+                      setError(e.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.deleteButtonText}>
+                    Supprimer tous les items
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
 function CollapsibleCategory({
   type,
   items,
   checkedItems,
   toggleChecked,
+  fetchUserData,
 }: {
   type: string;
   items: Array<{ id: number; name: string; quantity: number; unit?: string }>;
   checkedItems: { [id: number]: boolean };
   toggleChecked: (id: number) => void;
+  fetchUserData: () => Promise<void>;
 }) {
   const [collapsed, setCollapsed] = React.useState(false);
+
+  function handleDelete(id: number): void {
+    // Suppression d'un item de la liste de courses via l'API
+    (async () => {
+      try {
+        // On suppose que l'API et fetchUserData sont accessibles via closure
+        const token = await AsyncStorage.getItem("accessToken");
+        const res = await fetch(`${api}shopping-list-items/${id}/`, {
+          method: "DELETE",
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "Content-Type": "application/json",
+          },
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error("Erreur lors de la suppression: " + text);
+        }
+        // Rafraîchir les données utilisateur après suppression
+        await fetchUserData();
+      } catch (e: any) {
+        alert(e.message || "Erreur lors de la suppression.");
+      }
+    })();
+  }
+
   return (
     <View style={{ marginBottom: 16 }}>
       <View
@@ -631,18 +539,18 @@ function CollapsibleCategory({
         >
           <Text style={styles.ingredientType}>{type}</Text>
         </TouchableOpacity>
+
         <Text style={styles.collapseIcon}>{collapsed ? "▶" : "▼"}</Text>
       </View>
       {!collapsed && (
         <View style={styles.shoppingList}>
           {items.map((item) => (
-            <ShoppingItem
+            <ShoppingRow
               key={item.id}
-              name={item.name}
-              quantity={item.quantity}
+              item={{ ...item, id: item.id.toString() }}
               checked={!!checkedItems[item.id]}
               onPress={() => toggleChecked(item.id)}
-              unit={item.unit}
+              onDelete={() => handleDelete(item.id)}
             />
           ))}
         </View>
@@ -651,46 +559,96 @@ function CollapsibleCategory({
   );
 }
 
-function ShoppingItem({
-  name,
-  quantity,
+function ShoppingRow({
+  item,
   checked,
   onPress,
-  unit,
+  onDelete,
 }: {
-  name: string;
-  quantity: number;
+  item: { id: string; name: string; quantity: number; unit?: string };
   checked: boolean;
   onPress: () => void;
-  unit?: string;
+  onDelete: () => void;
 }) {
+  const [swipeDirection, setSwipeDirection] = React.useState<string | null>(
+    null
+  );
+
   return (
-    <TouchableOpacity
-      style={styles.itemBlock}
-      onPress={onPress}
-      activeOpacity={0.7}
+    <GestureRecognizer
+      onSwipeLeft={() => setSwipeDirection("left")}
+      onSwipeUp={() => setSwipeDirection(null)}
+      onSwipeDown={() => setSwipeDirection(null)}
     >
-      <Text
-        style={[
-          styles.itemQty,
-          checked && { textDecorationLine: "line-through", color: "#888" },
-        ]}
-      >
-        x{quantity} {unit ? unit : ""}{" "}
-      </Text>
-      <Text
-        style={[
-          styles.itemText,
-          checked && { textDecorationLine: "line-through", color: "#888" },
-        ]}
-      >
-        {name}
-      </Text>
-    </TouchableOpacity>
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.itemBlock}
+          onPress={onPress}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.itemQty,
+              checked && { textDecorationLine: "line-through", color: "#888" },
+            ]}
+          >
+            x{item.quantity} {item.unit ?? ""}
+          </Text>
+          <Text
+            style={[
+              styles.itemText,
+              checked && { textDecorationLine: "line-through", color: "#888" },
+            ]}
+          >
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            style={[
+              styles.deleteButton,
+              { opacity: swipeDirection === "left" ? 1 : 0 },
+            ]}
+            onPress={onDelete}
+            disabled={swipeDirection !== "left"}
+          >
+            <MaterialIcons name="delete-outline" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </GestureRecognizer>
   );
 }
 
 const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+  },
+  editButton: {
+    backgroundColor: "#4da6ff",
+    padding: 8,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  deleteButton: {
+    backgroundColor: "red",
+    padding: 8,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.dark.primary,
@@ -855,21 +813,20 @@ const styles = StyleSheet.create({
   itemBlock: {
     backgroundColor: Colors.dark.tertiary,
     borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    marginBottom: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
     shadowColor: Colors.dark.primary,
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 3,
+    flex: 1,
   },
   itemText: {
     color: Colors.dark.text,
     fontSize: 16,
     flex: 1,
-    marginBottom: 2,
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
@@ -878,12 +835,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginRight: 12,
     fontWeight: "bold",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginBottom: 10,
   },
   collapseIcon: {
     fontSize: 18,
@@ -1040,14 +991,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 24,
     marginTop: 8,
-  },
-  deleteButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    marginTop: 12,
   },
   deleteButtonText: {
     color: Colors.dark.text,
