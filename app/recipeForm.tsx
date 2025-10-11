@@ -144,8 +144,7 @@ const RecipeForm = () => {
           );
           // Stocke l'id du type à sélectionner
           if (json.type) setPendingTypeId(json.type.id);
-        } catch (err) {
-        }
+        } catch (err) {}
       }
     };
     fetchRecipe();
@@ -351,225 +350,240 @@ const RecipeForm = () => {
         </Text>
       </View>
 
-      <ScrollView>
-        <Text style={styles.title}></Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Nom de la recette"
-          placeholderTextColor="#666"
-          value={name}
-          onChangeText={setName}
-        />
-        {/* Sélection du type de plat */}
-        <View style={{ marginBottom: 16 }}>
-          <Text style={{ color: "#fff", marginBottom: 6 }}>Type de plat :</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              flexDirection: "row",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            {availableTypes.map((type) => (
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardDismissMode="on-drag"
+        >
+          <Text style={styles.title}></Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nom de la recette"
+            placeholderTextColor="#666"
+            value={name}
+            onChangeText={setName}
+          />
+          {/* Sélection du type de plat */}
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ color: "#fff", marginBottom: 6 }}>
+              Type de plat :
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                flexDirection: "row",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              {availableTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={{
+                    backgroundColor:
+                      selectedType?.id === type.id
+                        ? Colors.dark.action
+                        : "#333",
+                    borderRadius: 8,
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    marginRight: 8,
+                    marginBottom: 8,
+                  }}
+                  onPress={() => setSelectedType(type)}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                    {type.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {ingredients.map((entry, index) => (
+            <View key={index} style={styles.ingredientRow}>
+              <TextInput
+                style={styles.quantityInput}
+                placeholder="Quantité"
+                keyboardType="numeric"
+                value={entry.quantity}
+                onChangeText={(val) => updateIngredient(index, "quantity", val)}
+              />
               <TouchableOpacity
-                key={type.id}
-                style={{
-                  backgroundColor:
-                    selectedType?.id === type.id ? Colors.dark.action : "#333",
-                  borderRadius: 8,
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  marginRight: 8,
-                  marginBottom: 8,
-                }}
-                onPress={() => setSelectedType(type)}
+                style={styles.selector}
+                onPress={() => showUnitPicker(index)}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                  {type.name}
+                <Text style={styles.selectorText}>
+                  {entry.unit?.name || "unité ?"}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {ingredients.map((entry, index) => (
-          <View key={index} style={styles.ingredientRow}>
-            <TextInput
-              style={styles.quantityInput}
-              placeholder="Quantité"
-              keyboardType="numeric"
-              value={entry.quantity}
-              onChangeText={(val) => updateIngredient(index, "quantity", val)}
-            />
-            <TouchableOpacity
-              style={styles.selector}
-              onPress={() => showUnitPicker(index)}
-            >
-              <Text style={styles.selectorText}>
-                {entry.unit?.name || "unité ?"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.selectorIngredient}
-              onPress={() => showIngredientPicker(index)}
-            >
-              <Text style={styles.selectorText}>
-                {entry.ingredient?.name || "Sélection de l'ingrédient"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-        {/* Modal de sélection d'ingrédient avec recherche */}
-        {ingredientModalVisible && (
-          <View style={styles.ingredientModalOverlay}>
-            <View style={styles.ingredientModalContent}>
-              <Text style={styles.ingredientModalTitle}>
-                Choisir un ingrédient
-              </Text>
-              <View style={styles.ingredientModalSearchRow}>
-                <TextInput
-                  style={styles.ingredientModalSearchInput}
-                  placeholder="Rechercher..."
-                  placeholderTextColor="#888"
-                  value={ingredientSearch}
-                  onChangeText={setIngredientSearch}
-                  autoFocus={!showCreateIngredient}
-                />
-                <TouchableOpacity
-                  style={styles.ingredientModalSendButton}
-                  onPress={handleIngredientSearch}
-                  disabled={loadingIngredientSearch}
-                >
-                  <MaterialIcons
-                    name="send"
-                    size={24}
-                    color={Colors.dark.action}
+              <TouchableOpacity
+                style={styles.selectorIngredient}
+                onPress={() => showIngredientPicker(index)}
+              >
+                <Text style={styles.selectorText}>
+                  {entry.ingredient?.name || "Sélection de l'ingrédient"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+          {/* Modal de sélection d'ingrédient avec recherche */}
+          {ingredientModalVisible && (
+            <View style={styles.ingredientModalOverlay}>
+              <View style={styles.ingredientModalContent}>
+                <Text style={styles.ingredientModalTitle}>
+                  Choisir un ingrédient
+                </Text>
+                <View style={styles.ingredientModalSearchRow}>
+                  <TextInput
+                    style={styles.ingredientModalSearchInput}
+                    placeholder="Rechercher..."
+                    placeholderTextColor="#888"
+                    value={ingredientSearch}
+                    onChangeText={setIngredientSearch}
+                    autoFocus={!showCreateIngredient}
                   />
-                </TouchableOpacity>
-              </View>
-              {/* Affiche les résultats de la recherche d'ingrédients */}
-              {ingredientResults.length > 0 && !showCreateIngredient && (
-                <View style={styles.ingredientModalResults}>
-                  {ingredientResults.map((ing) => (
-                    <TouchableOpacity
-                      key={ing.id}
-                      style={styles.ingredientModalItem}
-                      onPress={() => {
-                        if (ingredientModalIndex !== null) {
-                          updateIngredient(
-                            ingredientModalIndex,
-                            "ingredient",
-                            ing
-                          );
-                        }
-                        setIngredientModalVisible(false);
+                  <TouchableOpacity
+                    style={styles.ingredientModalSendButton}
+                    onPress={handleIngredientSearch}
+                    disabled={loadingIngredientSearch}
+                  >
+                    <MaterialIcons
+                      name="send"
+                      size={24}
+                      color={Colors.dark.action}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {/* Affiche les résultats de la recherche d'ingrédients */}
+                {ingredientResults.length > 0 && !showCreateIngredient && (
+                  <View style={styles.ingredientModalResults}>
+                    {ingredientResults.map((ing) => (
+                      <TouchableOpacity
+                        key={ing.id}
+                        style={styles.ingredientModalItem}
+                        onPress={() => {
+                          if (ingredientModalIndex !== null) {
+                            updateIngredient(
+                              ingredientModalIndex,
+                              "ingredient",
+                              ing
+                            );
+                          }
+                          setIngredientModalVisible(false);
+                        }}
+                      >
+                        <Text style={styles.ingredientModalItemText}>
+                          {ing.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                {/* Redirige vers ingredientForm si aucun résultat */}
+                {!showCreateIngredient && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIngredientModalVisible(false);
+                      setShowCreateIngredient(false);
+                      setNewIngredientName("");
+                      setSelectedIngredientType(null);
+                      router.push({
+                        pathname: "/ingredientForm",
+                        params: { search: ingredientSearch },
+                      });
+                    }}
+                    style={{ alignItems: "center", marginTop: 16 }}
+                  >
+                    <Text
+                      style={{
+                        color: "#aaa",
+                        textAlign: "center",
+                        marginBottom: 8,
                       }}
                     >
-                      <Text style={styles.ingredientModalItemText}>
-                        {ing.name}
+                      L'ingredient ne correspond pas ? Crée ton ingrédient.
+                    </Text>
+                    <View
+                      style={{
+                        backgroundColor: Colors.dark.action,
+                        borderRadius: 8,
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        Aller à la création
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-              {/* Redirige vers ingredientForm si aucun résultat */}
-              {!showCreateIngredient && (
+                    </View>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
+                  style={styles.ingredientModalClose}
                   onPress={() => {
                     setIngredientModalVisible(false);
                     setShowCreateIngredient(false);
                     setNewIngredientName("");
                     setSelectedIngredientType(null);
-                    router.push({
-                      pathname: "/ingredientForm",
-                      params: { search: ingredientSearch },
-                    });
+                    setIngredientResults([]);
                   }}
-                  style={{ alignItems: "center", marginTop: 16 }}
                 >
-                  <Text
-                    style={{
-                      color: "#aaa",
-                      textAlign: "center",
-                      marginBottom: 8,
-                    }}
-                  >
-                    L'ingredient ne correspond pas ? Crée ton ingrédient.
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: Colors.dark.action,
-                      borderRadius: 8,
-                      paddingVertical: 8,
-                      paddingHorizontal: 16,
-                    }}
-                  >
-                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                      Aller à la création
-                    </Text>
-                  </View>
+                  <Text style={styles.ingredientModalCloseText}>Annuler</Text>
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={styles.ingredientModalClose}
-                onPress={() => {
-                  setIngredientModalVisible(false);
-                  setShowCreateIngredient(false);
-                  setNewIngredientName("");
-                  setSelectedIngredientType(null);
-                  setIngredientResults([]);
-                }}
-              >
-                <Text style={styles.ingredientModalCloseText}>Annuler</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
-        {/* Modal de sélection d'unité */}
-        {unitModalVisible && (
-          <View style={styles.unitModalOverlay}>
-            <View style={styles.unitModalContent}>
-              <Text style={styles.unitModalTitle}>Choisir une unité</Text>
-              {availableUnits.map((unit) => (
+          )}
+          {/* Modal de sélection d'unité */}
+          {unitModalVisible && (
+            <View style={styles.unitModalOverlay}>
+              <View style={styles.unitModalContent}>
+                <Text style={styles.unitModalTitle}>Choisir une unité</Text>
+                {availableUnits.map((unit) => (
+                  <TouchableOpacity
+                    key={unit.id}
+                    style={styles.unitModalItem}
+                    onPress={() => {
+                      if (unitModalIndex !== null) {
+                        updateIngredient(unitModalIndex, "unit", unit);
+                      }
+                      setUnitModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.unitModalItemText}>{unit.name}</Text>
+                  </TouchableOpacity>
+                ))}
                 <TouchableOpacity
-                  key={unit.id}
-                  style={styles.unitModalItem}
-                  onPress={() => {
-                    if (unitModalIndex !== null) {
-                      updateIngredient(unitModalIndex, "unit", unit);
-                    }
-                    setUnitModalVisible(false);
-                  }}
+                  style={styles.unitModalClose}
+                  onPress={() => setUnitModalVisible(false)}
                 >
-                  <Text style={styles.unitModalItemText}>{unit.name}</Text>
+                  <Text style={styles.unitModalCloseText}>Annuler</Text>
                 </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={styles.unitModalClose}
-                onPress={() => setUnitModalVisible(false)}
-              >
-                <Text style={styles.unitModalCloseText}>Annuler</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
-        {/* Show buttons only if no modal is open */}
-        {!ingredientModalVisible && !unitModalVisible && !typeModalVisible && (
-          <>
-            <TouchableOpacity style={styles.addButton} onPress={addIngredient}>
-              <Text>Ajouter un ingrédient</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={submitRecipe}
-            >
-              <Text style={styles.submitText}>Sauvegarder la recette</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
+          )}
+          {/* Show buttons only if no modal is open */}
+          {!ingredientModalVisible &&
+            !unitModalVisible &&
+            !typeModalVisible && (
+              <>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={addIngredient}
+                >
+                  <Text>Ajouter un ingrédient</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  onPress={submitRecipe}
+                >
+                  <Text style={styles.submitText}>Sauvegarder la recette</Text>
+                </TouchableOpacity>
+              </>
+            )}
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 };

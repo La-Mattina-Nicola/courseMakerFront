@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   ScrollView,
   StyleSheet,
@@ -159,6 +158,8 @@ const IngredientScreen = () => {
 
   const [userData, setUserData] = useState<any>(null);
   const router = useRouter();
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     fetchUserData();
@@ -203,7 +204,6 @@ const IngredientScreen = () => {
     quantity: number = 1,
     unitId: number = 1
   ) => {
-
     if (!ingredientId || !unitId) {
       return;
     }
@@ -232,20 +232,41 @@ const IngredientScreen = () => {
       const text = await response.text();
       if (!response.ok) {
       } else {
-        Alert.alert(
-          "Succès",
+        setSuccessMessage(
           `${
             ingredients.find((i) => i.id === ingredientId)?.name ||
             "L'ingrédient"
           } a été ajouté à ${selectedShoppingList.name}`
         );
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Success Modal */}
+      {showSuccess && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: 30,
+            left: 20,
+            right: 20,
+            backgroundColor: "#2ecc40",
+            padding: 16,
+            borderRadius: 12,
+            alignItems: "center",
+            zIndex: 999,
+            elevation: 10,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>
+            {successMessage}
+          </Text>
+        </View>
+      )}
       {/* Header similaire à recipe.tsx */}
       <View style={styles.fixedHeader}>
         <Text style={styles.homeTitle}>INGRÉDIENTS</Text>
@@ -312,7 +333,13 @@ const IngredientScreen = () => {
                 setShowShoppingListPicker(false);
               }}
             >
-              <Text style={styles.typePickerText}>{list.name}</Text>
+              <Text style={styles.typePickerText}>
+                {list.name}
+                {(() => {
+                  const fam = families.find((f: any) => f.id === list.family);
+                  return fam && fam.name ? ` (${fam.name})` : "";
+                })()}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

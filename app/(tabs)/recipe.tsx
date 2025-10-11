@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   ScrollView,
   StyleSheet,
@@ -74,8 +75,7 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 2000);
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   };
 
   // Success modal
@@ -87,6 +87,9 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
   return (
     <>
       <TouchableOpacity
+        onLongPress={() => {
+          Alert.alert("WIP", "Recette ajoutée aux favoris !");
+        }}
         onPress={() =>
           router.push({
             pathname: "/recipeForm",
@@ -98,6 +101,13 @@ const RecipeCard: React.FC<RecipeCardProps> = ({
         }
       >
         <View style={styles.cardRow}>
+          <View style={styles.cardFav}>
+            <Ionicons
+              name={item.is_favorite ? "star" : "star-outline"}
+              size={24}
+              color={item.is_favorite ? "#FFD700" : Colors.dark.icon}
+            />
+          </View>
           <View style={styles.cardInfo}>
             <Text style={styles.cardTitle}>{item.name}</Text>
             <Text style={styles.cardSubtitle}>{item.type.name}</Text>
@@ -365,7 +375,13 @@ const RecipeScreen: React.FC = () => {
                 setShowShoppingListPicker(false);
               }}
             >
-              <Text style={styles.typePickerText}>{list.name}</Text>
+              <Text style={styles.typePickerText}>
+                {list.name}
+                {(() => {
+                  const fam = families.find((f: any) => f.id === list.family);
+                  return fam && fam.name ? ` (${fam.name})` : "";
+                })()}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

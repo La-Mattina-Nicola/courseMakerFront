@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -8,6 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from "react-native";
 
 const RegisterScreen = () => {
@@ -16,6 +18,8 @@ const RegisterScreen = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
 
   const handleRegister = async () => {
@@ -85,23 +89,48 @@ const RegisterScreen = () => {
         autoCapitalize="none"
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Mot de passe"
-        placeholderTextColor="#888"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirmer le mot de passe"
-        placeholderTextColor="#888"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          placeholder="Mot de passe"
+          placeholderTextColor="#888"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity
+          style={styles.eyeButton}
+          onPress={() => setShowPassword((v) => !v)}
+        >
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={22}
+            color="#888"
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          placeholder="Confirmer le mot de passe"
+          placeholderTextColor="#888"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!showConfirmPassword}
+        />
+        <TouchableOpacity
+          style={styles.eyeButton}
+          onPress={() => setShowConfirmPassword((v) => !v)}
+        >
+          <Ionicons
+            name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+            size={22}
+            color="#888"
+          />
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={styles.button} onPress={handleRegister}>
         <Text style={styles.buttonText}>S'inscrire</Text>
@@ -142,6 +171,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 8,
+  },
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    marginBottom: 16,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 8,
+    transform: [{ translateY: -11 }],
+    padding: 8,
+    zIndex: 1,
   },
   errorText: {
     color: "#ff4d4f",

@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -190,6 +191,10 @@ function RecipeScreen() {
     React.useState<any>(null);
   const [showShoppingListPicker, setShowShoppingListPicker] =
     React.useState(false);
+
+  // Ajoutez cet état en haut du composant RecipeScreen :
+  const [showCreateListModal, setShowCreateListModal] = React.useState(false);
+  const [newListName, setNewListName] = React.useState("");
   // Ne pas écraser la sélection courante à chaque reload
   React.useEffect(() => {
     if (userData) {
@@ -323,6 +328,99 @@ function RecipeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 72 }}
       >
+        {showCreateListModal && (
+          <>
+            <View
+              style={[
+                styles.modalOverlay,
+                {
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 500,
+                  zIndex: 100,
+                },
+              ]}
+            >
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>Créer une nouvelle liste</Text>
+                <TextInput
+                  style={[
+                    styles.modalSearchInput,
+                    {
+                      minWidth: 220,
+                      fontSize: 18,
+                      paddingVertical: 12,
+                      paddingHorizontal: 18,
+                      minHeight: 50,
+                    },
+                  ]}
+                  placeholder="Nom de la liste"
+                  placeholderTextColor="#888"
+                  value={newListName}
+                  onChangeText={setNewListName}
+                  autoFocus
+                />
+                <View style={styles.addIngredientBlockBtnsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalAddButton,
+                      { opacity: newListName.trim() ? 1 : 0.5 },
+                    ]}
+                    disabled={!newListName.trim()}
+                    onPress={async () => {
+                      if (!newListName.trim()) return;
+                      setLoading(true);
+                      try {
+                        const token = await AsyncStorage.getItem("accessToken");
+                        const res = await fetch(`${api}shopping-lists/`, {
+                          method: "POST",
+                          headers: {
+                            Authorization: token ? `Bearer ${token}` : "",
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({
+                            name: newListName,
+                            family: selectedFamily?.id,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const text = await res.text();
+                          throw new Error(
+                            "Erreur lors de la création: " + text
+                          );
+                        }
+                        setShowCreateListModal(false);
+                        setNewListName("");
+                        await fetchUserData();
+                      } catch (e: any) {
+                        setError(e.message);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                      Créer
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalCloseButton}
+                    onPress={() => {
+                      setShowCreateListModal(false);
+                      setNewListName("");
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
         {/* Bloc famille avec sélection */}
         <View style={styles.block}>
           <Text style={styles.blockTitle}>Famille</Text>
@@ -373,6 +471,7 @@ function RecipeScreen() {
             <Text style={styles.familyButtonText}>Voir la famille</Text>
           </TouchableOpacity>
         </View>
+
         {/* Bloc liste de courses */}
 
         {families.length > 0 && (
@@ -392,8 +491,13 @@ function RecipeScreen() {
                 <View style={styles.blockName}>
                   <Text style={styles.blockTitle}>
                     {selectedShoppingList?.name || "Liste des courses"}
-                    {selectedShoppingList?.family?.name
-                      ? ` (${selectedShoppingList.family.name})`
+                    {selectedShoppingList?.family && families.length > 0
+                      ? (() => {
+                          const fam = families.find(
+                            (f: any) => f.id === selectedShoppingList.family
+                          );
+                          return fam ? ` (${fam.name})` : "";
+                        })()
                       : ""}
                   </Text>
                 </View>
@@ -410,13 +514,23 @@ function RecipeScreen() {
                       setShowShoppingListPicker(false);
                     }}
                   >
-                    <Text style={styles.typePickerText}>{list.name}</Text>
+                    <Text style={styles.typePickerText}>
+                      {list.name}
+                      {list.family && families.length > 0
+                        ? (() => {
+                            const fam = families.find(
+                              (f: any) => f.id === list.family
+                            );
+                            return fam ? ` (${fam.name})` : "";
+                          })()
+                        : ""}
+                    </Text>
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity
                   style={styles.createListButton}
                   onPress={() => {
-                    alert("Créer une nouvelle liste de courses");
+                    setShowCreateListModal(true);
                   }}
                 >
                   <Text style={{ color: "#fff", fontWeight: "bold" }}>
@@ -483,6 +597,7 @@ function RecipeScreen() {
     </SafeAreaView>
   );
 }
+
 function CollapsibleCategory({
   type,
   items,
@@ -535,12 +650,16 @@ function CollapsibleCategory({
         <TouchableOpacity
           onPress={() => setCollapsed((c) => !c)}
           activeOpacity={0.7}
-          style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "baseline",
+            flex: 1,
+            justifyContent: "space-between",
+          }}
         >
           <Text style={styles.ingredientType}>{type}</Text>
+          <Text style={styles.collapseIcon}>{collapsed ? "▶" : "▼"}</Text>
         </TouchableOpacity>
-
-        <Text style={styles.collapseIcon}>{collapsed ? "▶" : "▼"}</Text>
       </View>
       {!collapsed && (
         <View style={styles.shoppingList}>
