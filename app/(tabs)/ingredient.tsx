@@ -292,7 +292,7 @@ const IngredientScreen = () => {
             bottom: 30,
             left: 20,
             right: 20,
-            backgroundColor: "green",
+            backgroundColor: colors.tertiary,
             padding: 16,
             borderRadius: 12,
             alignItems: "center",
