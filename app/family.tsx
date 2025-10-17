@@ -14,7 +14,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Colors } from "../constants/theme";
+import CustomAlert from "../components/CustomAlert";
+import { useTheme } from "../context/ThemeContext";
+import { useUserData } from "../context/UserDataContext";
 
 export default function FamilyScreen() {
   const [showCreateFamilyModal, setShowCreateFamilyModal] =
@@ -24,9 +26,27 @@ export default function FamilyScreen() {
   const [createFamilyError, setCreateFamilyError] = React.useState<
     string | null
   >(null);
+  const [showFamilyPicker, setShowFamilyPicker] = React.useState(false);
   const router = useRouter();
   const params = useLocalSearchParams();
-  let families = [];
+
+  // État pour l'alerte personnalisée
+  const [alertVisible, setAlertVisible] = React.useState(false);
+  const [alertTitle, setAlertTitle] = React.useState("");
+  const [alertMessage, setAlertMessage] = React.useState("");
+  const [alertOnConfirm, setAlertOnConfirm] = React.useState<() => void>(
+    () => {}
+  );
+
+  // Utiliser le contexte UserData
+  const {
+    families: contextFamilies,
+    selectedFamily,
+    setSelectedFamily,
+  } = useUserData();
+
+  let families = contextFamilies;
+
   interface Family {
     id: number;
     name: string;
@@ -42,35 +62,21 @@ export default function FamilyScreen() {
 
   let user: User | null = null;
   try {
-    if (params.family)
-      families = Array.isArray(JSON.parse(params.family as string))
-        ? JSON.parse(params.family as string)
-        : [JSON.parse(params.family as string)];
     if (params.user) user = JSON.parse(params.user as string);
   } catch {}
-
-  // Sélection famille (comme dans home)
-  const [selectedFamily, setSelectedFamily] = React.useState<any>(
-    families.length > 0 ? families[0] : null
-  );
-  const [showFamilyPicker, setShowFamilyPicker] = React.useState(false);
-
-  React.useEffect(() => {
-    if (
-      families.length > 0 &&
-      (!selectedFamily ||
-        !families.find((f: any) => f.id === selectedFamily.id))
-    ) {
-      setSelectedFamily(families[0]);
-    }
-  }, [families]);
 
   // Pour affichage principal
   const hasFamily = selectedFamily && selectedFamily.name;
   const familyName = hasFamily ? selectedFamily.name : null;
   const members =
-    hasFamily && Array.isArray(selectedFamily.member_names)
-      ? selectedFamily.member_names
+    hasFamily &&
+    Array.isArray(selectedFamily.member_names) &&
+    Array.isArray(selectedFamily.members) &&
+    selectedFamily.member_names.length === selectedFamily.members.length
+      ? selectedFamily.member_names.map((name: string, idx: number) => ({
+          name,
+          id: selectedFamily.members[idx],
+        }))
       : [];
 
   const [search, setSearch] = React.useState("");
@@ -145,6 +151,94 @@ export default function FamilyScreen() {
         alert("Erreur lors de l'ajout à la famille");
       }
     };
+  }
+
+  function handleRemoveUserFromFamily(userName: string) {
+    setAlertTitle("Retirer un membre");
+    setAlertMessage(
+      `Êtes-vous sûr de vouloir retirer "${userName}" de la famille ?`
+    );
+    setAlertOnConfirm(() => async () => {
+      setAlertVisible(false);
+      try {
+        const api = Constants?.expoConfig?.extra?.API_URL || "";
+        const token = await getAccessToken();
+
+        const familyId = selectedFamily?.id;
+        if (!familyId) {
+          alert("Aucune famille sélectionnée.");
+          return;
+        }
+
+        // Chercher l'ID de l'utilisateur à partir de son nom
+        // Besoin d'obtenir l'ID de l'utilisateur - on va le faire via une requête ou l'extraire des résultats
+        // Pour l'instant, on va faire une requête pour chercher l'utilisateur
+        let userId = null;
+
+        // Chercher dans les résultats de recherche précédents
+        if (results.length > 0) {
+          const foundUser = results.find((u) => u.username === userName);
+          if (foundUser) {
+            userId = foundUser.id;
+          }
+        }
+
+        if (!userId) {
+          alert("Impossible de trouver l'ID de l'utilisateur.");
+          return;
+        }
+
+        const url = `${api}families/${familyId}/remove-members/`;
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({ user_ids: [userId] }),
+        });
+
+        let text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          alert(
+            "Erreur inattendue du serveur.\n" +
+              "Code HTTP: " +
+              res.status +
+              "\n" +
+              text
+          );
+          return;
+        }
+
+        if (!res.ok) {
+          alert("Erreur: " + JSON.stringify(data));
+        } else {
+          alert("Utilisateur retiré de la famille !");
+          // Re-fetch user data après suppression
+          const userRes = await fetch(`${api}user-data/`, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          });
+          const userData = await userRes.json();
+          // Actualiser le contexte
+          const updatedFamily = userData.families?.find(
+            (f: any) => f.id === selectedFamily.id
+          );
+          if (updatedFamily) {
+            setSelectedFamily(updatedFamily);
+          }
+        }
+      } catch (e) {
+        alert("Erreur lors du retrait de la famille");
+      }
+    });
+    setAlertVisible(true);
   }
 
   async function handleSearch() {
@@ -228,14 +322,26 @@ export default function FamilyScreen() {
     }
   }
 
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.container}>
+      <CustomAlert
+        visible={alertVisible}
+        title={alertTitle}
+        message={alertMessage}
+        onCancel={() => setAlertVisible(false)}
+        onConfirm={alertOnConfirm}
+        cancelText="Annuler"
+        confirmText="Retirer"
+      />
       <View style={styles.fixedHeader}>
         <TouchableOpacity
           style={styles.logoutIcon}
-          onPress={() => router.back()}
+          onPress={() => router.replace("/home")}
         >
-          <MaterialIcons name="arrow-back" size={28} color={Colors.dark.text} />
+          <MaterialIcons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.homeTitle}>FAMILY {familyName}</Text>
       </View>
@@ -243,6 +349,56 @@ export default function FamilyScreen() {
         contentContainerStyle={{ alignItems: "center", paddingTop: 72 }}
       >
         <View style={styles.familyBlock}>
+          {/* Sélectionneur de famille */}
+          {families.length > 0 && (
+            <>
+              <TouchableOpacity
+                style={styles.familySelector}
+                onPress={() => setShowFamilyPicker(!showFamilyPicker)}
+              >
+                <Text style={styles.familySelectorLabel}>
+                  Sélectionner une famille
+                </Text>
+                <Text style={styles.familySelectorValue}>
+                  {selectedFamily?.name || "Aucune"}
+                </Text>
+              </TouchableOpacity>
+
+              {showFamilyPicker && (
+                <View style={styles.familyPickerBlock}>
+                  {families.map((family: any) => (
+                    <TouchableOpacity
+                      key={family.id}
+                      style={[
+                        styles.familyPickerItem,
+                        selectedFamily?.id === family.id && {
+                          backgroundColor: colors.action,
+                          borderRadius: 8,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedFamily(family);
+                        setShowFamilyPicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.familyPickerItemText,
+                          selectedFamily?.id === family.id && {
+                            color: "#fff",
+                            fontWeight: "bold",
+                          },
+                        ]}
+                      >
+                        {family.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
           <TouchableOpacity
             style={styles.createFamilyButton}
             onPress={() => setShowCreateFamilyModal(true)}
@@ -384,271 +540,328 @@ export default function FamilyScreen() {
             </View>
           </Modal>
 
-          {selectedFamily && (
-            <>
-              <Text style={styles.familyTitle}>Famille</Text>
-              {familyName ? (
-                <Text style={styles.familyName}>{familyName}</Text>
-              ) : (
-                <Text style={styles.familyName}>Aucune famille</Text>
-              )}
-
+          <>
+            <Text style={styles.familyTitle}>Famille</Text>
+            <View style={{ marginBottom: 12 }}>
               <Text style={styles.membersTitle}>Membres :</Text>
-              <View style={styles.membersList}>
-                {members.length > 0 ? (
-                  members.map((m: any) => (
-                    <Text key={m} style={styles.member}>
-                      {m}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.member}>Aucun membre</Text>
-                )}
-              </View>
-              {/* Champ de recherche utilisateur */}
-              <View style={styles.searchUserRow}>
-                <TextInput
-                  style={styles.searchUserInput}
-                  placeholder="Rechercher utilisateur"
-                  placeholderTextColor="#888"
-                  value={search}
-                  onChangeText={setSearch}
-                  onSubmitEditing={handleSearch}
-                />
-                <TouchableOpacity
-                  style={styles.searchUserButton}
-                  onPress={handleSearch}
-                >
-                  <MaterialIcons
-                    name="send"
-                    size={18}
-                    color={Colors.dark.text}
-                  />
-                </TouchableOpacity>
-              </View>
-              {searching && (
-                <ActivityIndicator color="orangered" style={{ marginTop: 8 }} />
-              )}
-              {error && (
-                <Text style={{ color: "red", marginTop: 8 }}>{error}</Text>
-              )}
-              {results.length > 0 && (
-                <View style={styles.searchResultsBlock}>
-                  {results.map((user) => (
-                    <View
-                      key={user.id}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: 4,
-                      }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.searchResultText}>
-                          {user.username} ({user.email})
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.addUserButton}
-                        onPress={addUserToFamily(user)}
-                      >
-                        <Text style={styles.addUserButtonText}>+</Text>
-                      </TouchableOpacity>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                }}
+              >
+                {members.map((member, idx) => (
+                  <View
+                    key={member.id}
+                    style={[
+                      styles.card,
+                      {
+                        width: "47%",
+                        marginRight: idx % 2 === 0 ? "6%" : 0,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.membersTitle}>{member.name}</Text>
                     </View>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
+                    {/* Icône poubelle pour supprimer le membre */}
+                    <TouchableOpacity
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        zIndex: 2,
+                        padding: 4,
+                      }}
+                      onPress={() => handleRemoveUserFromFamily(member.name)}
+                    >
+                      <MaterialIcons
+                        name="delete-outline"
+                        size={22}
+                        color="#b00"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+            {/* Champ de recherche utilisateur */}
+            <View style={styles.searchUserRow}>
+              <TextInput
+                style={styles.searchUserInput}
+                placeholder="Rechercher utilisateur"
+                placeholderTextColor="#888"
+                value={search}
+                onChangeText={setSearch}
+                onSubmitEditing={handleSearch}
+              />
+              <TouchableOpacity
+                style={styles.searchUserButton}
+                onPress={handleSearch}
+              >
+                <MaterialIcons name="send" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            {searching && (
+              <ActivityIndicator color="orangered" style={{ marginTop: 8 }} />
+            )}
+            {error && (
+              <Text style={{ color: "red", marginTop: 8 }}>{error}</Text>
+            )}
+            {results.length > 0 && (
+              <View style={styles.searchResultsBlock}>
+                {results.map((user) => (
+                  <View
+                    key={user.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.searchResultText}>
+                        {user.username} ({user.email})
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.addUserButton}
+                      onPress={addUserToFamily(user)}
+                    >
+                      <Text style={styles.addUserButtonText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  listSelectorBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    marginRight: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  typePickerBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  typePickerItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  typePickerText: {
-    color: Colors.dark.text,
-    fontSize: 15,
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: Colors.dark.secondary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 32,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  homeTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.dark.text,
-    letterSpacing: 1,
-  },
-  logoutIcon: {
-    padding: 4,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.primary,
-    paddingLeft: 24,
-    paddingRight: 24,
-    justifyContent: "flex-start",
-  },
-  familyBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: Colors.dark.primary,
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-    marginTop: 75,
-    width: "90%",
-    maxWidth: "100%",
-    justifyContent: "center",
-  },
-  familyTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: Colors.dark.text,
-    marginBottom: 6,
-  },
-  familyName: {
-    fontSize: 16,
-    color: Colors.dark.text,
-    marginBottom: 8,
-  },
-  membersTitle: {
-    fontSize: 15,
-    color: Colors.dark.icon,
-    marginBottom: 8,
-    marginLeft: 2,
-  },
-  membersList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
-  member: {
-    fontSize: 15,
-    color: Colors.dark.text,
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    marginBottom: 20,
-    textAlign: "center",
-    minWidth: 48,
-  },
-  searchUserRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  searchUserInput: {
-    flex: 1,
-    backgroundColor: Colors.dark.tertiary,
-    color: Colors.dark.text,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
-    marginRight: 8,
-  },
-  searchUserButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  searchUserButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  searchResultsBlock: {
-    marginTop: 8,
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    padding: 8,
-  },
-  searchResultText: {
-    color: Colors.dark.text,
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  addUserButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginLeft: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addUserButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 18,
-    textAlign: "center",
-  },
-  createFamilyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  createFamilyInput: {
-    flex: 1,
-    backgroundColor: Colors.dark.tertiary,
-    color: Colors.dark.text,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginRight: 8,
-    height: 50,
-  },
-  createFamilyButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  createFamilyButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-});
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    listSelectorBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 18,
+      marginRight: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    typePickerBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+      marginTop: 4,
+    },
+    typePickerItem: {
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.tertiary,
+    },
+    typePickerText: {
+      color: colors.text,
+      fontSize: 15,
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      backgroundColor: colors.secondary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      paddingTop: 32,
+      paddingBottom: 12,
+      paddingHorizontal: 24,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.tertiary,
+    },
+    homeTitle: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: colors.text,
+      letterSpacing: 1,
+    },
+    logoutIcon: {
+      padding: 4,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      justifyContent: "flex-start",
+    },
+    familyBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 16,
+      padding: 18,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 2,
+      marginTop: 75,
+      width: "90%",
+      maxWidth: "100%",
+      justifyContent: "center",
+    },
+    familyTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      marginBottom: 6,
+    },
+    familyName: {
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: 8,
+    },
+    card: {
+      backgroundColor: colors.primary,
+      width: "50%",
+      height: 100,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 8,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      elevation: 1,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    membersTitle: {
+      fontSize: 15,
+      color: colors.icon,
+      marginBottom: 8,
+      marginLeft: 2,
+    },
+    membersList: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginBottom: 10,
+    },
+    familySelector: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      marginBottom: 16,
+      borderWidth: 2,
+      borderColor: colors.action,
+    },
+    familySelectorLabel: {
+      fontSize: 12,
+      color: colors.icon,
+      marginBottom: 4,
+    },
+    familySelectorValue: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    familyPickerBlock: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      paddingVertical: 8,
+      marginBottom: 16,
+    },
+    familyPickerItem: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.secondary,
+    },
+    familyPickerItemText: {
+      fontSize: 15,
+      color: colors.text,
+    },
+    searchUserRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    searchUserInput: {
+      flex: 1,
+      backgroundColor: colors.tertiary,
+      color: colors.text,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      fontSize: 15,
+      marginRight: 8,
+    },
+    searchUserButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    searchUserButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+    searchResultsBlock: {
+      marginTop: 8,
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      padding: 8,
+    },
+    searchResultText: {
+      color: colors.text,
+      fontSize: 14,
+      marginBottom: 4,
+    },
+    addUserButton: {
+      backgroundColor: colors.action,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 2,
+      marginLeft: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    addUserButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 18,
+      textAlign: "center",
+    },
+    createFamilyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    createFamilyInput: {
+      flex: 1,
+      backgroundColor: colors.tertiary,
+      color: colors.text,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      marginRight: 8,
+      height: 50,
+    },
+    createFamilyButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    createFamilyButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+  });

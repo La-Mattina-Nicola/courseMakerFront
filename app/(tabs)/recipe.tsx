@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -16,8 +16,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Colors } from "../../constants/theme";
-import { removeTokens } from "../../utils/auth";
+import { useTheme } from "../../context/ThemeContext";
+import { useUserData } from "../../context/UserDataContext";
 
 interface RecipeType {
   id: number;
@@ -35,120 +35,126 @@ interface Recipe {
 
 interface RecipeCardProps {
   item: Recipe;
-  listName: string;
+  listId: number | null;
   familyId: number | null;
   favoriteIds: number[];
 }
 
-const RecipeCard: React.FC<RecipeCardProps> = ({
-  item,
-  listName,
-  familyId,
-  favoriteIds,
-}) => {
-  const router = useRouter();
+interface RecipeCardMemoProps extends RecipeCardProps {
+  onAddToList: (recipeId: number, listId: number | null) => Promise<void>;
+  onFavoritePress: (recipeId: number) => Promise<void>;
+  colors: any;
+}
 
-  // Fonction pour ajouter la recette à la liste de courses
-  const [showSuccess, setShowSuccess] = useState(false);
+const RecipeCard: React.FC<RecipeCardMemoProps> = React.memo(
+  ({
+    item,
+    listId,
+    familyId,
+    favoriteIds,
+    onAddToList,
+    onFavoritePress,
+    colors,
+  }) => {
+    const router = useRouter();
+    const styles = React.useMemo(() => getStyles(colors), [colors]);
+    const [showSuccess, setShowSuccess] = useState(false);
 
-  const addToShoppingList = async () => {
-    try {
-      const api = Constants?.expoConfig?.extra?.API_URL || "";
-      const token = await AsyncStorage.getItem("accessToken");
-      if (!token) {
-        return;
-      }
-      const res = await fetch(`${api}shopping-lists/add-recipe/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+    const handleAddToShoppingList = React.useCallback(async () => {
+      await onAddToList(item.id, listId);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    }, [item.id, listId, onAddToList]);
+
+    useEffect(() => {
+      return () => setShowSuccess(false);
+    }, []);
+
+    const handleEditPress = React.useCallback(() => {
+      router.push({
+        pathname: "/recipeForm",
+        params: {
+          mode: "edit",
+          id: item.id.toString(),
         },
-        body: JSON.stringify({
-          recipe_id: Number(item.id),
-          list_name: listName,
-        }),
       });
-      const text = await res.text();
-      if (!res.ok) {
-      } else {
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 2000);
+    }, [item.id, router]);
+
+    const handleFavoritePress = React.useCallback(async () => {
+      try {
+        await onFavoritePress(item.id);
+      } catch (error) {
+        Alert.alert("Erreur", "Impossible d'ajouter aux favoris");
       }
-    } catch (e) {}
-  };
+    }, [item.id, onFavoritePress]);
 
-  // Success modal
-  useEffect(() => {
-    // Cleanup on unmount
-    return () => setShowSuccess(false);
-  }, []);
-
-  return (
-    <>
-      <TouchableOpacity
-        onLongPress={() => {
-          Alert.alert("WIP", "Recette ajoutée aux favoris !");
-        }}
-        onPress={() =>
-          router.push({
-            pathname: "/recipeForm",
-            params: {
-              mode: "edit",
-              id: item.id.toString(),
-            },
-          })
-        }
-      >
-        <View style={styles.cardRow}>
-          <View style={styles.cardFav}>
-            <Ionicons
-              name={item.is_favorite ? "star" : "star-outline"}
-              size={24}
-              color={item.is_favorite ? "#FFD700" : Colors.dark.icon}
-            />
+    return (
+      <>
+        <TouchableOpacity onPress={handleEditPress}>
+          <View style={styles.cardRow}>
+            <TouchableOpacity
+              onPress={handleFavoritePress}
+              style={styles.cardFav}
+            >
+              <Ionicons
+                name={favoriteIds.includes(item.id) ? "star" : "star-outline"}
+                size={24}
+                color={favoriteIds.includes(item.id) ? "#FFD700" : colors.icon}
+              />
+            </TouchableOpacity>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle}>{item.name}</Text>
+              <Text style={styles.cardSubtitle}>{item.type.name}</Text>
+              <Text style={styles.cardSubtitle}>
+                {item.ingredients.length} ingredients
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addToListButton}
+              onPress={(e) => {
+                e.stopPropagation && e.stopPropagation();
+                handleAddToShoppingList();
+              }}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>{item.name}</Text>
-            <Text style={styles.cardSubtitle}>{item.type.name}</Text>
-            <Text style={styles.cardSubtitle}>
-              {item.ingredients.length} ingredients
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.addToListButton}
-            onPress={(e) => {
-              e.stopPropagation && e.stopPropagation();
-              addToShoppingList();
+        </TouchableOpacity>
+        {showSuccess && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 30,
+              left: 20,
+              right: 20,
+              backgroundColor: "#2ecc40",
+              padding: 16,
+              borderRadius: 12,
+              alignItems: "center",
+              zIndex: 999,
+              elevation: 10,
             }}
           >
-            <Ionicons name="add" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-      {showSuccess && (
-        <View
-          style={{
-            position: "absolute",
-            bottom: 30,
-            left: 20,
-            right: 20,
-            backgroundColor: "#2ecc40",
-            padding: 16,
-            borderRadius: 12,
-            alignItems: "center",
-            zIndex: 999,
-            elevation: 10,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>
-            Recette ajoutée à la liste de courses !
-          </Text>
-        </View>
-      )}
-    </>
-  );
-};
+            <Text style={{ color: "#fff", fontWeight: "bold" }}>
+              Recette ajoutée à la liste de courses !
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Compare les propriétés importantes pour éviter les re-renders
+    const isFavBefore = prevProps.favoriteIds.includes(prevProps.item.id);
+    const isFavAfter = nextProps.favoriteIds.includes(nextProps.item.id);
+    return (
+      prevProps.item.id === nextProps.item.id &&
+      isFavBefore === isFavAfter &&
+      prevProps.listId === nextProps.listId &&
+      prevProps.favoriteIds.length === nextProps.favoriteIds.length
+    );
+  }
+);
 
 const RecipeScreen: React.FC = () => {
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
@@ -159,51 +165,149 @@ const RecipeScreen: React.FC = () => {
   const [types, setTypes] = useState<RecipeType[]>([]);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [selectedType, setSelectedType] = useState<RecipeType | null>(null);
-  const [userData, setUserData] = useState<any>(null);
-  const [userLoading, setUserLoading] = useState(true);
   const [typeError, setTypeError] = useState<string | null>(null);
+  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
+  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
+  const [userLoading, setUserLoading] = useState(false);
   const router = useRouter();
+  const navigation = useNavigation();
 
-  // Recherche locale adaptée (comme ingredient.tsx)
-  const filtered = recipes
-    .filter((r) => {
-      if (selectedType) {
-        if (typeof r.type === "number") {
-          return r.type === selectedType.id;
-        } else if (typeof r.type === "object" && r.type?.id) {
-          return r.type.id === selectedType.id;
+  // Utilise les sélections du contexte au lieu du state local
+  const {
+    selectedFamily,
+    setSelectedFamily,
+    selectedShoppingList,
+    setSelectedShoppingList,
+  } = useUserData();
+
+  // Memoized filtered recipes
+  const filtered = React.useMemo(() => {
+    return recipes
+      .filter((r) => {
+        if (selectedType) {
+          if (typeof r.type === "number") {
+            return r.type === selectedType.id;
+          } else if (typeof r.type === "object" && r.type?.id) {
+            return r.type.id === selectedType.id;
+          }
+          return false;
         }
-        return false;
-      }
-      return true;
-    })
-    .filter((r) => {
-      const searchLower = search.toLowerCase();
-      const nameMatch = r.name.toLowerCase().includes(searchLower);
-      let typeMatch = false;
-      if (typeof r.type === "object" && r.type?.name) {
-        typeMatch = r.type.name.toLowerCase().includes(searchLower);
-      }
-      return nameMatch || typeMatch;
-    });
+        return true;
+      })
+      .filter((r) => {
+        const searchLower = search.toLowerCase();
+        const nameMatch = r.name.toLowerCase().includes(searchLower);
+        let typeMatch = false;
+        if (typeof r.type === "object" && r.type?.name) {
+          typeMatch = r.type.name.toLowerCase().includes(searchLower);
+        }
+        return nameMatch || typeMatch;
+      });
+  }, [recipes, selectedType, search]);
 
-  // Nouvelle fonction pour charger toutes les recettes (toutes pages)
-  const fetchAllRecipes = async () => {
+  // Memoized callback for adding recipe to shopping list
+  const handleAddToShoppingList = React.useCallback(
+    async (recipeId: number, listId: number | null) => {
+      if (!listId) {
+        Alert.alert("Erreur", "Veuillez sélectionner une liste de courses");
+        return;
+      }
+      try {
+        const token = await AsyncStorage.getItem("accessToken");
+        if (!token) {
+          return;
+        }
+        const payload = {
+          recipe_id: recipeId,
+          shopping_list_id: listId,
+        };
+        const res = await fetch(`${api}shopping-lists/add-recipe/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+        } else {
+          const responseData = await res.json();
+        }
+      } catch (e) {}
+    },
+    [api, selectedShoppingList, selectedFamily]
+  );
+
+  // Memoized callback for toggling favorite
+  const handleFavoritePress = React.useCallback(
+    async (recipeId: number) => {
+      try {
+        const token = await AsyncStorage.getItem("accessToken");
+        if (!token || !selectedFamily) {
+          Alert.alert("Erreur", "Veuillez sélectionner une famille");
+          return;
+        }
+
+        const isFavorite = favoriteIds.includes(recipeId);
+        const endpoint = isFavorite
+          ? `${api}families/${selectedFamily.id}/remove-favorite/`
+          : `${api}families/${selectedFamily.id}/add-favorite/`;
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            recipe_id: recipeId,
+          }),
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Erreur ${res.status}: ${errorText}`);
+        }
+
+        // Met à jour le state local des favoris
+        if (isFavorite) {
+          setFavoriteIds((prev) => prev.filter((id) => id !== recipeId));
+        } else {
+          setFavoriteIds((prev) => [...prev, recipeId]);
+        }
+      } catch (e) {
+        console.error("Error toggling favorite:", e);
+        throw e;
+      }
+    },
+    [api, selectedFamily, favoriteIds]
+  );
+
+  // Memoized fetch functions
+  const fetchAllRecipes = React.useCallback(async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("accessToken");
-      // Fetch families to get favorite_recipes FIRST
-      const famRes = await fetch(`${api}families/`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      });
-      const famJson = await famRes.json();
-      const favoriteRecipes =
-        famJson.favorite_recipes || famJson[0]?.favorite_recipes || [];
-      const ids = favoriteRecipes.map((r: any) => r.id);
-      setFavoriteIds(ids);
+
+      // Récupère les favoris de la famille sélectionnée via le contexte
+      let favoriteRecipeIds: number[] = [];
+      if (selectedFamily) {
+        try {
+          const famRes = await fetch(`${api}families/${selectedFamily.id}/`, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token ? `Bearer ${token}` : "",
+            },
+          });
+          const famData = await famRes.json();
+          const favoriteRecipes = famData.favorite_recipes || [];
+          favoriteRecipeIds = favoriteRecipes.map((r: any) => r.id);
+        } catch (e) {
+          console.error("Erreur lors de la récupération des favoris:", e);
+        }
+      }
+      setFavoriteIds(favoriteRecipeIds);
 
       // Fetch all recipes (all pages)
       let allRecipes: any[] = [];
@@ -222,10 +326,10 @@ const RecipeScreen: React.FC = () => {
 
       // Split recipes into favorites and others
       const favoriteRecipesList = allRecipes
-        .filter((r: any) => ids.includes(r.id))
+        .filter((r: any) => favoriteRecipeIds.includes(r.id))
         .map((r: any) => ({ ...r, is_favorite: true }));
       const otherRecipesList = allRecipes
-        .filter((r: any) => !ids.includes(r.id))
+        .filter((r: any) => !favoriteRecipeIds.includes(r.id))
         .map((r: any) => ({ ...r, is_favorite: false }));
 
       setRecipes([...favoriteRecipesList, ...otherRecipesList]);
@@ -234,9 +338,9 @@ const RecipeScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [api, selectedFamily]);
 
-  const fetchTypes = async () => {
+  const fetchTypes = React.useCallback(async () => {
     try {
       setTypeError(null);
       const url = `${api}recipe-types/`;
@@ -256,9 +360,9 @@ const RecipeScreen: React.FC = () => {
     } catch (error: any) {
       setTypeError(error?.message || String(error));
     }
-  };
+  }, [api]);
 
-  const fetchUserData = async () => {
+  const fetchUserData = React.useCallback(async () => {
     setUserLoading(true);
     try {
       const accessToken = await AsyncStorage.getItem("accessToken");
@@ -276,55 +380,66 @@ const RecipeScreen: React.FC = () => {
         const text = await res.text();
         throw new Error("Réponse inattendue du serveur: " + text);
       }
-      setUserData(data);
+      // Données synchronisées via le contexte, pas besoin de les mettre dans le state local
     } catch (e) {
-      setUserData(null);
+      // Erreurs gérées par le contexte
     } finally {
       setUserLoading(false);
     }
-  };
+  }, [api]);
 
+  // Utilise le contexte UserData
+  const { families: contextFamilies, shoppingLists: contextShoppingLists } =
+    useUserData();
+
+  // Proper useFocusEffect with all dependencies
   useFocusEffect(
     React.useCallback(() => {
       fetchAllRecipes();
       fetchTypes();
-      fetchUserData();
-    }, [])
+    }, [fetchAllRecipes, fetchTypes])
   );
 
-  // Récupère dynamiquement le nom de la famille et de la liste de courses
-  const families = userData?.families || [];
-  const [selectedFamily, setSelectedFamily] = useState<any>(null);
-  const [showFamilyPicker, setShowFamilyPicker] = useState(false);
-  const shoppingLists = userData?.shopping_lists || [];
-  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
-  const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
+  // Synchronise l'état is_favorite des recettes avec favoriteIds
   useEffect(() => {
-    if (families.length > 0) {
-      setSelectedFamily(families[0]);
-    }
-    if (shoppingLists.length > 0) {
-      setSelectedShoppingList(shoppingLists[0]);
-    }
-  }, [userData]);
+    setRecipes((prevRecipes) =>
+      prevRecipes.map((recipe) => ({
+        ...recipe,
+        is_favorite: favoriteIds.includes(recipe.id),
+      }))
+    );
+  }, [favoriteIds]);
+
+  // Memoized key extractor for FlatList
+  const keyExtractor = React.useCallback(
+    (item: Recipe) => item.id.toString(),
+    []
+  );
+
+  // Utilise les données du contexte memoïsées
+  const families = React.useMemo(() => contextFamilies, [contextFamilies]);
+  const shoppingLists = React.useMemo(
+    () => contextShoppingLists,
+    [contextShoppingLists]
+  );
+
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.fixedHeader}>
-        <Text style={styles.homeTitle}>RECETTE</Text>
         <TouchableOpacity
-          style={styles.logoutIcon}
-          onPress={async () => {
-            await removeTokens();
-            router.replace("/login");
-          }}
+          style={styles.menuButton}
+          onPress={() => (navigation as any).openDrawer()}
         >
-          <Ionicons name="log-out-outline" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color="#fff" />
         </TouchableOpacity>
+        <Text style={styles.homeTitle}>RECETTE</Text>
       </View>
 
       {/* Bloc famille et liste de courses */}
-      <View style={[styles.infoBlocksRow, { marginTop: 70 }]}>
+      <View style={[styles.infoBlocksRow, { marginTop: 40 }]}>
         <TouchableOpacity
           style={styles.infoBlock}
           onPress={() => setShowFamilyPicker((v) => !v)}
@@ -465,31 +580,60 @@ const RecipeScreen: React.FC = () => {
 
       {loading ? (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="orangered" />
+          <ActivityIndicator size="large" color={colors.action} />
         </View>
       ) : (
         <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id.toString()}
+          data={["create", ...filtered]}
+          keyExtractor={(item) =>
+            item === "create" ? "create" : (item as Recipe).id.toString()
+          }
           numColumns={1}
           contentContainerStyle={styles.grid}
-          renderItem={({ item }) => (
-            <RecipeCard
-              item={item}
-              listName={selectedShoppingList?.name || ""}
-              familyId={selectedFamily?.id || null}
-              favoriteIds={favoriteIds}
-            />
-          )}
+          renderItem={({ item }) =>
+            item === "create" ? (
+              <TouchableOpacity
+                style={[
+                  styles.cardRow,
+                  {
+                    backgroundColor: colors.action,
+                    marginBottom: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 8,
+                    minHeight: 0,
+                  },
+                ]}
+                onPress={() => router.push("/recipeForm?mode=create")}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="add"
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 10 }}
+                />
+                <Text
+                  style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}
+                >
+                  Créer une nouvelle recette
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <RecipeCard
+                item={item as Recipe}
+                listId={selectedShoppingList?.id || null}
+                familyId={selectedFamily?.id || null}
+                favoriteIds={favoriteIds}
+                onAddToList={handleAddToShoppingList}
+                onFavoritePress={handleFavoritePress}
+                colors={colors}
+              />
+            )
+          }
         />
       )}
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => router.push("/recipeForm?mode=create")}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
       {typeError && (
         <View
           style={{
@@ -508,244 +652,252 @@ const RecipeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  typeTile: {
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginBottom: 4,
-    alignItems: "center",
-    minWidth: 48,
-    borderWidth: 2,
-    borderColor: Colors.dark.tertiary,
-  },
-  typeTileSelected: {
-    backgroundColor: Colors.dark.action,
-    borderColor: Colors.dark.action,
-  },
-  typeTileText: {
-    color: Colors.dark.text,
-    fontSize: 15,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  typeTileTextSelected: {
-    color: "#fff",
-  },
-  infoBlocksRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    gap: 12,
-  },
-  infoBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 14,
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.action,
-  },
-  infoBlockLabel: {
-    color: Colors.dark.icon,
-    fontSize: 13,
-    marginBottom: 4,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  infoBlockValue: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  listNameInput: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "bold",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    marginTop: 2,
-    width: "100%",
-    textAlign: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.tertiary,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.primary,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: Colors.dark.secondary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 32,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  homeTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.dark.text,
-    letterSpacing: 1,
-  },
-  logoutIcon: {
-    padding: 4,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    flex: 1,
-    height: 44,
-    padding: 10,
-  },
-  searchInput: {
-    flex: 1,
-    color: Colors.dark.text,
-    fontSize: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  typeButton: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.action,
-  },
-  typeButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  typePickerBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  typePickerItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  typePickerText: {
-    color: Colors.dark.text,
-    fontSize: 15,
-  },
-  grid: { gap: 1 },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardFav: {
-    width: "15%",
-  },
-  cardInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 10,
-    padding: 12,
-    margin: 6,
-  },
-  cardTitle: { fontSize: 16, fontWeight: "500", color: Colors.dark.text },
-  cardSubtitle: { fontSize: 12, color: Colors.dark.icon, marginTop: 8 },
-  addButton: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    backgroundColor: Colors.dark.action,
-    borderRadius: 30,
-    padding: 16,
-    elevation: 5,
-  },
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    typeTile: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginBottom: 4,
+      alignItems: "center",
+      minWidth: 48,
+      borderWidth: 2,
+      borderColor: colors.tertiary,
+    },
+    typeTileSelected: {
+      backgroundColor: colors.action,
+      borderColor: colors.action,
+    },
+    typeTileText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "bold",
+      textAlign: "center",
+    },
+    typeTileTextSelected: {
+      color: "#fff",
+    },
+    infoBlocksRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 16,
+      gap: 12,
+    },
+    infoBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 14,
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.action,
+    },
+    infoBlockLabel: {
+      color: colors.icon,
+      fontSize: 13,
+      marginBottom: 4,
+      fontWeight: "bold",
+      letterSpacing: 0.5,
+    },
+    infoBlockValue: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    listNameInput: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "bold",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      marginTop: 2,
+      width: "100%",
+      textAlign: "center",
+      borderWidth: 2,
+      borderColor: colors.tertiary,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      justifyContent: "center",
+      paddingHorizontal: 12,
+    },
+    loaderContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      backgroundColor: colors.secondary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      paddingTop: 32,
+      paddingBottom: 12,
+      paddingHorizontal: 24,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.tertiary,
+    },
+    menuButton: {
+      padding: 4,
+    },
+    homeTitle: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: colors.text,
+      letterSpacing: 1,
+    },
+    logoutIcon: {
+      padding: 4,
+    },
+    searchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    searchContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      flex: 1,
+      height: 44,
+      padding: 10,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 16,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      height: 44,
+    },
+    typeButton: {
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      marginRight: 8,
+      height: 44,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.action,
+    },
+    typeButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+    typePickerBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+    },
+    typePickerItem: {
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.tertiary,
+    },
+    typePickerText: {
+      color: colors.text,
+      fontSize: 15,
+    },
+    grid: { gap: 1 },
+    cardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    cardFav: {
+      width: "15%",
+    },
+    cardInfo: {
+      flex: 1,
+      minWidth: 0,
+    },
+    card: {
+      flex: 1,
+      backgroundColor: colors.tertiary,
+      borderRadius: 10,
+      padding: 12,
+      margin: 6,
+    },
+    cardTitle: { fontSize: 16, fontWeight: "500", color: colors.text },
+    cardSubtitle: { fontSize: 12, color: colors.icon, marginTop: 8 },
+    addButton: {
+      position: "absolute",
+      bottom: 24,
+      right: 24,
+      backgroundColor: colors.action,
+      borderRadius: 30,
+      padding: 16,
+      elevation: 5,
+    },
 
-  addToListText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.tertiary,
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  pageButton: {
-    flex: 1,
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginHorizontal: 4,
-  },
-  pageButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  pageInfo: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "500",
-  },
+    addToListText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 14,
+      marginLeft: 8,
+    },
+    pagination: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderTopWidth: 1,
+      borderTopColor: colors.tertiary,
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      marginBottom: 12,
+    },
+    pageButton: {
+      flex: 1,
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 10,
+      alignItems: "center",
+      marginHorizontal: 4,
+    },
+    pageButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 16,
+    },
+    pageInfo: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "500",
+    },
 
-  addToListButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 12,
-    alignSelf: "stretch",
-    justifyContent: "center",
-    height: "100%",
-  },
-});
+    addToListButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      marginLeft: 12,
+      alignSelf: "stretch",
+      justifyContent: "center",
+      height: "100%",
+    },
+  });
 
 export default RecipeScreen;

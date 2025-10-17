@@ -1,4 +1,4 @@
-import { Colors } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { getAccessToken } from "@/utils/auth";
 import { MaterialIcons } from "@expo/vector-icons";
 import Constants from "expo-constants";
@@ -327,6 +327,9 @@ const RecipeForm = () => {
     }
   };
 
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -342,7 +345,7 @@ const RecipeForm = () => {
           style={styles.logoutIcon}
           onPress={() => router.back()}
         >
-          <MaterialIcons name="arrow-back" size={28} color={Colors.dark.text} />
+          <MaterialIcons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.homeTitle}>
           {" "}
@@ -384,8 +387,8 @@ const RecipeForm = () => {
                   style={{
                     backgroundColor:
                       selectedType?.id === type.id
-                        ? Colors.dark.action
-                        : "#333",
+                        ? colors.action
+                        : colors.tertiary,
                     borderRadius: 8,
                     paddingVertical: 8,
                     paddingHorizontal: 16,
@@ -453,7 +456,7 @@ const RecipeForm = () => {
                     <MaterialIcons
                       name="send"
                       size={24}
-                      color={Colors.dark.action}
+                      color={colors.action}
                     />
                   </TouchableOpacity>
                 </View>
@@ -508,7 +511,7 @@ const RecipeForm = () => {
                     </Text>
                     <View
                       style={{
-                        backgroundColor: Colors.dark.action,
+                        backgroundColor: colors.action,
                         borderRadius: 8,
                         paddingVertical: 8,
                         paddingHorizontal: 16,
@@ -588,283 +591,284 @@ const RecipeForm = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#121212",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
-  input: {
-    height: 48,
-    borderColor: "#444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 16,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: Colors.dark.secondary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 32,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.dark.tertiary,
-    marginBottom: 16,
-  },
-  homeTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.dark.text,
-    letterSpacing: 1,
-  },
-  logoutIcon: {
-    padding: 4,
-  },
-  // ...existing styles for modals, buttons, etc...
-  typeModalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  typeModalContent: {
-    width: "80%",
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    padding: 24,
-    elevation: 4,
-  },
-  typeModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
-  typeModalInput: {
-    height: 48,
-    borderColor: "#444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 16,
-  },
-  typeModalAddButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  typeModalAddButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  typeModalClose: {
-    alignItems: "center",
-    padding: 8,
-  },
-  typeModalCloseText: {
-    color: "#888",
-    fontSize: 14,
-  },
-  ingredientRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  quantityInput: {
-    width: 80,
-    height: 40,
-    borderColor: "#444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    fontSize: 16,
-    color: "#fff",
-    marginRight: 8,
-  },
-  selector: {
-    flex: 1,
-    height: 40,
-    backgroundColor: "#333",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-    width: 80,
-  },
-  selectorText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  selectorIngredient: {
-    flex: 2,
-    height: 40,
-    backgroundColor: "#333",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ingredientModalOverlay: {
-    position: "absolute",
-    top: 50,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "center",
-  },
-  ingredientModalContent: {
-    width: "80%",
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    padding: 24,
-    elevation: 4,
-  },
-  ingredientModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
-  ingredientModalSearchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  ingredientModalSearchInput: {
-    flex: 1,
-    height: 40,
-    borderColor: "#444",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#fff",
-    marginRight: 8,
-  },
-  ingredientModalSendButton: {
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-  ingredientModalResults: {
-    maxHeight: 200,
-    marginBottom: 16,
-  },
-  ingredientModalItem: {
-    backgroundColor: "#333",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  ingredientModalItemText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  ingredientModalClose: {
-    alignItems: "center",
-    padding: 8,
-  },
-  ingredientModalCloseText: {
-    color: "#888",
-    fontSize: 14,
-  },
-  unitModalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  unitModalContent: {
-    width: "80%",
-    backgroundColor: "#1e1e1e",
-    borderRadius: 8,
-    padding: 24,
-    elevation: 4,
-  },
-  unitModalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
-  },
-  unitModalItem: {
-    backgroundColor: "#333",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  unitModalItemText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  unitModalClose: {
-    alignItems: "center",
-    padding: 8,
-  },
-  unitModalCloseText: {
-    color: "#888",
-    fontSize: 14,
-  },
-  addButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  submitButton: {
-    backgroundColor: "green",
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  submitText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  bottom: {
-    flex: 1,
-    flexDirection: "column-reverse",
-  },
-});
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 12,
+      backgroundColor: colors.primary,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.text,
+      marginBottom: 16,
+    },
+    input: {
+      height: 48,
+      borderColor: colors.tertiary,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: 16,
+    },
+    center: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      backgroundColor: colors.secondary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      paddingTop: 32,
+      paddingBottom: 12,
+      paddingHorizontal: 24,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.tertiary,
+      marginBottom: 16,
+    },
+    homeTitle: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: colors.text,
+      letterSpacing: 1,
+    },
+    logoutIcon: {
+      padding: 4,
+    },
+    // ...existing styles for modals, buttons, etc...
+    typeModalOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    typeModalContent: {
+      width: "80%",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      padding: 24,
+      elevation: 4,
+    },
+    typeModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      marginBottom: 16,
+    },
+    typeModalInput: {
+      height: 48,
+      borderColor: colors.tertiary,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: 16,
+    },
+    typeModalAddButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    typeModalAddButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 16,
+    },
+    typeModalClose: {
+      alignItems: "center",
+      padding: 8,
+    },
+    typeModalCloseText: {
+      color: colors.icon,
+      fontSize: 14,
+    },
+    ingredientRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+    },
+    quantityInput: {
+      width: 80,
+      height: 40,
+      borderColor: colors.tertiary,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      fontSize: 16,
+      color: colors.text,
+      marginRight: 8,
+    },
+    selector: {
+      flex: 1,
+      height: 40,
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 8,
+      width: 80,
+    },
+    selectorText: {
+      color: colors.text,
+      fontSize: 16,
+    },
+    selectorIngredient: {
+      flex: 2,
+      height: 40,
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    ingredientModalOverlay: {
+      position: "absolute",
+      top: 50,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: "center",
+    },
+    ingredientModalContent: {
+      width: "80%",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      padding: 24,
+      elevation: 4,
+    },
+    ingredientModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      marginBottom: 16,
+    },
+    ingredientModalSearchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    ingredientModalSearchInput: {
+      flex: 1,
+      height: 40,
+      borderColor: colors.tertiary,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: colors.text,
+      marginRight: 8,
+    },
+    ingredientModalSendButton: {
+      borderRadius: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      alignItems: "center",
+    },
+    ingredientModalResults: {
+      maxHeight: 200,
+      marginBottom: 16,
+    },
+    ingredientModalItem: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+    },
+    ingredientModalItemText: {
+      color: colors.text,
+      fontSize: 16,
+    },
+    ingredientModalClose: {
+      alignItems: "center",
+      padding: 8,
+    },
+    ingredientModalCloseText: {
+      color: colors.icon,
+      fontSize: 14,
+    },
+    unitModalOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    unitModalContent: {
+      width: "80%",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      padding: 24,
+      elevation: 4,
+    },
+    unitModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      marginBottom: 16,
+    },
+    unitModalItem: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+    },
+    unitModalItemText: {
+      color: colors.text,
+      fontSize: 16,
+    },
+    unitModalClose: {
+      alignItems: "center",
+      padding: 8,
+    },
+    unitModalCloseText: {
+      color: colors.icon,
+      fontSize: 14,
+    },
+    addButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+      marginTop: 16,
+    },
+    submitButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 12,
+      alignItems: "center",
+      marginTop: 16,
+    },
+    submitText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 16,
+    },
+    bottom: {
+      flex: 1,
+      flexDirection: "column-reverse",
+    },
+  });
 
 export default RecipeForm;

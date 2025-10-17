@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -14,44 +15,72 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Colors } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { useUserData } from "../../context/UserDataContext";
 
 const PAGE_SIZE = 20;
 
-const IngredientCard = ({ item, onAdd }: { item: any; onAdd: () => void }) => (
-  <View style={styles.cardRow}>
-    <View style={styles.cardInfo}>
-      <Text style={styles.cardTitle}>{item.name}</Text>
+const IngredientCard = ({
+  item,
+  onAdd,
+  colors,
+}: {
+  item: any;
+  onAdd: () => void;
+  colors: any;
+}) => {
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+  return (
+    <View style={styles.cardRow}>
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardTitle}>{item.name}</Text>
+      </View>
+      <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
+        <Ionicons name="add" size={20} color="#fff" />
+      </TouchableOpacity>
     </View>
-    <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
-      <Ionicons name="add" size={20} color="#fff" />
-    </TouchableOpacity>
-  </View>
-);
+  );
+};
 
 const IngredientScreen = () => {
-  // Fetch user data (familles et listes)
-  const fetchUserData = async () => {
-    try {
-      const token = await AsyncStorage.getItem("accessToken");
-      const res = await fetch(`${api}user-data/`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-          "Content-Type": "application/json",
-        },
-      });
-      const data = await res.json();
-      setUserData(data);
-      setFamilies(data.families || []);
-      setShoppingLists(data.shopping_lists || []);
-      if (data.families?.length > 0) setSelectedFamily(data.families[0]);
-      if (data.shopping_lists?.length > 0)
-        setSelectedShoppingList(data.shopping_lists[0]);
-    } catch {
-      setFamilies([]);
-      setShoppingLists([]);
+  // Utilise le contexte UserData pour éviter les appels API répétés
+  const {
+    families: contextFamilies,
+    shoppingLists: contextShoppingLists,
+    refreshUserData: contextRefreshUserData,
+  } = useUserData() || {};
+  // Fonction de refreshUserData locale
+  const refreshUserData = async () => {
+    if (typeof contextRefreshUserData === "function") {
+      await contextRefreshUserData();
+    } else {
+      // Fallback: refetch families and shopping lists from API
+      try {
+        const token = await AsyncStorage.getItem("accessToken");
+        const api = Constants?.expoConfig?.extra?.API_URL || "";
+        const [familiesRes, shoppingListsRes] = await Promise.all([
+          fetch(`${api}families/`, {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+              "Content-Type": "application/json",
+            },
+          }),
+          fetch(`${api}shopping-lists/`, {
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+              "Content-Type": "application/json",
+            },
+          }),
+        ]);
+        // Tu peux mettre à jour le state local ici si besoin
+        // const familiesJson = await familiesRes.json();
+        // const shoppingListsJson = await shoppingListsRes.json();
+        // setFamilies(familiesJson.results || []);
+        // setShoppingLists(shoppingListsJson.results || []);
+      } catch (e) {}
     }
   };
+  const navigation = useNavigation();
 
   // Fetch all ingredient types (all pages)
   const fetchIngredientTypes = async () => {
@@ -143,11 +172,7 @@ const IngredientScreen = () => {
   };
 
   const [showFamilyPicker, setShowFamilyPicker] = useState(false);
-  const [families, setFamilies] = useState<any[]>([]);
   const [showShoppingListPicker, setShowShoppingListPicker] = useState(false);
-  const [shoppingLists, setShoppingLists] = useState<any[]>([]);
-  const [selectedFamily, setSelectedFamily] = useState<any>(null);
-  const [selectedShoppingList, setSelectedShoppingList] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [ingredientTypes, setIngredientTypes] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState<any>(null);
@@ -156,25 +181,38 @@ const IngredientScreen = () => {
   const [loading, setLoading] = useState(false);
   const api = Constants?.expoConfig?.extra?.API_URL || "";
 
-  const [userData, setUserData] = useState<any>(null);
   const router = useRouter();
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Utilise les données et sélections du contexte
+  const families = contextFamilies;
+  const shoppingLists = contextShoppingLists;
+  const {
+    selectedFamily,
+    setSelectedFamily,
+    selectedShoppingList,
+    setSelectedShoppingList,
+  } = useUserData() || {};
+
+  // Resynchronise selectedShoppingList après chaque refreshUserData ou changement de shoppingLists
+  React.useEffect(() => {
+    if (!selectedShoppingList || !shoppingLists.length) return;
+    const updated = shoppingLists.find(
+      (l: any) => l.id === selectedShoppingList.id
+    );
+    if (updated && updated !== selectedShoppingList) {
+      setSelectedShoppingList(updated);
+    }
+  }, [shoppingLists, selectedShoppingList?.id]);
+
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
+
   useEffect(() => {
-    fetchUserData();
     fetchIngredientTypes();
     fetchAllIngredients();
-
-    if (families.length > 0) {
-      setSelectedFamily(families[0]);
-    }
-    if (shoppingLists.length > 0) {
-      setSelectedShoppingList(shoppingLists[0]);
-    }
   }, []);
-
-  // Pagination n'est plus utilisée côté UI
 
   // Recherche locale adaptée :
   const filtered = ingredients
@@ -211,7 +249,7 @@ const IngredientScreen = () => {
       const token = await AsyncStorage.getItem("accessToken");
       const url = `${api}shopping-list-items/`;
 
-      // Build body conditionally
+      // Build body conditionnel
       const body: any = {
         ingredient: ingredientId,
         quantity,
@@ -229,16 +267,16 @@ const IngredientScreen = () => {
         },
         body: JSON.stringify(body),
       });
-      const text = await response.text();
       if (!response.ok) {
       } else {
         setSuccessMessage(
           `${
             ingredients.find((i) => i.id === ingredientId)?.name ||
             "L'ingrédient"
-          } a été ajouté à ${selectedShoppingList.name}`
+          } a été ajouté à ${selectedShoppingList?.name || "la liste"}`
         );
         setShowSuccess(true);
+        await refreshUserData();
         setTimeout(() => setShowSuccess(false), 2000);
       }
     } catch (error) {}
@@ -269,20 +307,17 @@ const IngredientScreen = () => {
       )}
       {/* Header similaire à recipe.tsx */}
       <View style={styles.fixedHeader}>
-        <Text style={styles.homeTitle}>INGRÉDIENTS</Text>
         <TouchableOpacity
-          style={styles.logoutIcon}
-          onPress={async () => {
-            await AsyncStorage.removeItem("accessToken");
-            router.replace("/login");
-          }}
+          style={styles.menuButton}
+          onPress={() => (navigation as any).openDrawer()}
         >
-          <Ionicons name="log-out-outline" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color="#fff" />
         </TouchableOpacity>
+        <Text style={styles.homeTitle}>INGRÉDIENTS</Text>
       </View>
 
       {/* Bloc famille et liste de courses */}
-      <View style={[styles.infoBlocksRow, { marginTop: 70 }]}>
+      <View style={[styles.infoBlocksRow, { marginTop: 40 }]}>
         <TouchableOpacity
           style={styles.infoBlock}
           onPress={() => setShowFamilyPicker((v) => !v)}
@@ -373,7 +408,7 @@ const IngredientScreen = () => {
             }}
             style={{ marginLeft: 8 }}
           >
-            <Ionicons name="send" size={20} color={Colors.dark.action} />
+            <Ionicons name="send" size={20} color={colors.action} />
           </TouchableOpacity>
         </View>
       </View>
@@ -462,241 +497,266 @@ const IngredientScreen = () => {
       {/* Liste des ingrédients */}
       {loading ? (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={Colors.dark.action} />
-        </View>
-      ) : filtered.length === 0 ? (
-        <View style={styles.loaderContainer}>
-          <Text style={{ color: Colors.dark.text, marginBottom: 16 }}>
-            Aucun ingrédient trouvé.
-          </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => {
-              router.push({ pathname: "/ingredientForm", params: { search } });
-            }}
-          >
-            <View style={styles.searchRow}>
-              <Ionicons name="add" size={28} color="#fff" />
-              <Text
-                style={{ color: "#fff", marginLeft: 8, fontWeight: "bold" }}
-              >
-                Créer l'ingrédient
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <ActivityIndicator size="large" color={colors.action} />
         </View>
       ) : (
         <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <IngredientCard
-              item={item}
-              onAdd={() => addToShoppingList(item.id)}
-            />
-          )}
-          contentContainerStyle={{ paddingBottom: 80 }}
+          data={["create", ...filtered]}
+          keyExtractor={(item) =>
+            item === "create" ? "create" : (item as any).id.toString()
+          }
+          renderItem={({ item }) =>
+            item === "create" ? (
+              <TouchableOpacity
+                style={[
+                  styles.cardRow,
+                  {
+                    backgroundColor: colors.action,
+                    marginBottom: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 8,
+                    minHeight: 0,
+                  },
+                ]}
+                onPress={() => {
+                  router.push({
+                    pathname: "/ingredientForm",
+                    params: { search },
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="add"
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 10 }}
+                />
+                <Text
+                  style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}
+                >
+                  Créer un nouvel ingrédient
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <IngredientCard
+                item={item as any}
+                onAdd={() => addToShoppingList((item as any).id)}
+                colors={colors}
+              />
+            )
+          }
+          contentContainerStyle={{ paddingTop: 12 }}
         />
       )}
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  infoBlocksRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    gap: 12,
-  },
-  infoBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 14,
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.action,
-  },
-  infoBlockLabel: {
-    color: Colors.dark.icon,
-    fontSize: 13,
-    marginBottom: 4,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  infoBlockValue: {
-    color: Colors.dark.text,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.primary,
-    paddingHorizontal: 24,
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: Colors.dark.secondary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 32,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  homeTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colors.dark.text,
-    letterSpacing: 1,
-  },
-  logoutIcon: {
-    padding: 4,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 0,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    flex: 1,
-    height: 44,
-    padding: 10,
-  },
-  searchInput: {
-    flex: 1,
-    color: Colors.dark.text,
-    fontSize: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    height: 44,
-  },
-  typeButton: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: Colors.dark.action,
-  },
-  typeButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  typePickerBlock: {
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  typePickerItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.tertiary,
-  },
-  typePickerText: {
-    color: Colors.dark.text,
-    fontSize: 15,
-  },
-  typeTile: {
-    backgroundColor: Colors.dark.tertiary,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginBottom: 4,
-    alignItems: "center",
-    minWidth: 48,
-    borderWidth: 2,
-    borderColor: Colors.dark.tertiary,
-  },
-  typeTileSelected: {
-    backgroundColor: Colors.dark.action,
-    borderColor: Colors.dark.action,
-  },
-  typeTileText: {
-    color: Colors.dark.text,
-    fontSize: 15,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  typeTileTextSelected: {
-    color: "#fff",
-  },
-  grid: { gap: 1 },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cardTitle: { fontSize: 16, fontWeight: "500", color: Colors.dark.text },
-  cardSubtitle: { fontSize: 12, color: Colors.dark.icon, marginTop: 8 },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  pagination: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-  },
-  pageButton: {
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    marginHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pageButtonText: {
-    color: Colors.dark.text,
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  pageInfo: { marginHorizontal: 12, fontSize: 16 },
-  addToListButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.action,
-    borderRadius: 8,
-    padding: 4,
-    alignSelf: "stretch",
-    justifyContent: "center",
-    height: "100%",
-  },
-  addButton: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    backgroundColor: Colors.dark.action,
-    borderRadius: 30,
-    padding: 16,
-    elevation: 5,
-  },
-});
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    infoBlocksRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 16,
+      gap: 12,
+    },
+    infoBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 14,
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.action,
+    },
+    infoBlockLabel: {
+      color: colors.icon,
+      fontSize: 13,
+      marginBottom: 4,
+      fontWeight: "bold",
+      letterSpacing: 0.5,
+    },
+    infoBlockValue: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: "bold",
+    },
+    container: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      backgroundColor: colors.secondary,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      paddingTop: 32,
+      paddingBottom: 12,
+      paddingHorizontal: 24,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.tertiary,
+    },
+    menuButton: {
+      padding: 4,
+    },
+    homeTitle: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: colors.text,
+      letterSpacing: 1,
+    },
+    logoutIcon: {
+      padding: 4,
+    },
+    searchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      marginTop: 0,
+    },
+    searchContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      flex: 1,
+      height: 44,
+      padding: 10,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 16,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      height: 44,
+    },
+    typeButton: {
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      marginRight: 8,
+      height: 44,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.action,
+    },
+    typeButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+    typePickerBlock: {
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+    },
+    typePickerItem: {
+      paddingVertical: 8,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.tertiary,
+    },
+    typePickerText: {
+      color: colors.text,
+      fontSize: 15,
+    },
+    typeTile: {
+      backgroundColor: colors.tertiary,
+      borderRadius: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginBottom: 4,
+      alignItems: "center",
+      minWidth: 48,
+      borderWidth: 2,
+      borderColor: colors.tertiary,
+    },
+    typeTileSelected: {
+      backgroundColor: colors.action,
+      borderColor: colors.action,
+    },
+    typeTileText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "bold",
+      textAlign: "center",
+    },
+    typeTileTextSelected: {
+      color: "#fff",
+    },
+    grid: { gap: 1 },
+    cardRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    cardInfo: {
+      flex: 1,
+      minWidth: 0,
+    },
+    cardTitle: { fontSize: 16, fontWeight: "500", color: colors.text },
+    cardSubtitle: { fontSize: 12, color: colors.icon, marginTop: 8 },
+    loaderContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    pagination: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+    },
+    pageButton: {
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 18,
+      marginHorizontal: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pageButtonText: {
+      color: colors.text,
+      fontWeight: "bold",
+      fontSize: 15,
+    },
+    pageInfo: { marginHorizontal: 12, fontSize: 16 },
+    addToListButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.action,
+      borderRadius: 8,
+      padding: 4,
+      alignSelf: "stretch",
+      justifyContent: "center",
+      height: "100%",
+    },
+    addButton: {
+      position: "absolute",
+      bottom: 24,
+      right: 24,
+      backgroundColor: colors.action,
+      borderRadius: 30,
+      padding: 16,
+      elevation: 5,
+    },
+  });
 
 export default IngredientScreen;
