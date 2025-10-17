@@ -106,11 +106,11 @@ const IngredientForm = () => {
 
       {/* Sélecteur de type d'ingrédient */}
       <View>
-        <Text style={{ color: "#fff", marginBottom: 8 }}>
+        <Text style={{ color: colors.text, marginBottom: 8 }}>
           Type d'ingrédient
         </Text>
         {loading ? (
-          <Text style={{ color: "#888" }}>Chargement...</Text>
+          <Text style={{ color: colors.action }}>Chargement...</Text>
         ) : error ? (
           <Text style={{ color: "red" }}>{error}</Text>
         ) : (
@@ -253,7 +253,7 @@ const getStyles = (colors: any) =>
       marginTop: 8,
     },
     modalButtonText: {
-      color: "#fff",
+      color: colors.text,
       fontWeight: "bold",
       fontSize: 16,
     },
@@ -409,7 +409,7 @@ const getStyles = (colors: any) =>
       textAlign: "center",
     },
     typeTileTextSelected: {
-      color: "#fff",
+      color: colors.text,
     },
     grid: { gap: 1 },
     cardRow: {
@@ -481,7 +481,7 @@ const getStyles = (colors: any) =>
       marginTop: 16,
     },
     submitText: {
-      color: "#fff",
+      color: colors.text,
       fontWeight: "bold",
       fontSize: 16,
       textAlign: "center",

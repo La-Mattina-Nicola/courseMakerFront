@@ -369,7 +369,7 @@ const RecipeForm = () => {
           />
           {/* Sélection du type de plat */}
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ color: "#fff", marginBottom: 6 }}>
+            <Text style={{ color: colors.text, marginBottom: 6 }}>
               Type de plat :
             </Text>
             <ScrollView
@@ -397,7 +397,7 @@ const RecipeForm = () => {
                   }}
                   onPress={() => setSelectedType(type)}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  <Text style={{ color: colors.text, fontWeight: "bold" }}>
                     {type.name}
                   </Text>
                 </TouchableOpacity>
@@ -502,7 +502,7 @@ const RecipeForm = () => {
                   >
                     <Text
                       style={{
-                        color: "#aaa",
+                        color: colors.text,
                         textAlign: "center",
                         marginBottom: 8,
                       }}
@@ -517,7 +517,7 @@ const RecipeForm = () => {
                         paddingHorizontal: 16,
                       }}
                     >
-                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                      <Text style={{ color: colors.text, fontWeight: "bold" }}>
                         Aller à la création
                       </Text>
                     </View>

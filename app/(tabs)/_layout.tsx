@@ -1,16 +1,18 @@
+import DrawerContent from "@/app/drawer";
+import { HapticTab } from "@/components/haptic-tab";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { Tabs } from "expo-router";
 import React from "react";
-
-import DrawerContent from "@/app/drawer";
-import { HapticTab } from "@/components/haptic-tab";
-import { Colors } from "@/constants/theme";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { StyleSheet } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
 
 const Drawer = createDrawerNavigator();
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   return (
     <Drawer.Navigator
       drawerContent={(props) => <DrawerContent {...props} />}
@@ -28,9 +30,9 @@ export default function TabLayout() {
         {() => (
           <Tabs
             screenOptions={{
-              tabBarActiveTintColor: Colors.dark.tint,
+              tabBarActiveTintColor: colors.icon,
               tabBarStyle: {
-                backgroundColor: Colors.dark.background,
+                backgroundColor: colors.primary,
                 borderTopColor: "#333",
                 borderTopWidth: 2,
               },
@@ -75,3 +77,55 @@ export default function TabLayout() {
     </Drawer.Navigator>
   );
 }
+
+const getStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.secondary,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.tertiary,
+      marginBottom: 20,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.text,
+      marginLeft: 12,
+    },
+    menu: {
+      flex: 1,
+      paddingHorizontal: 12,
+    },
+    menuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      marginBottom: 8,
+      borderRadius: 8,
+      backgroundColor: colors.tertiary,
+    },
+    menuItemText: {
+      fontSize: 16,
+      color: colors.text,
+      marginLeft: 16,
+      fontWeight: "500",
+    },
+    footer: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      paddingBottom: 20,
+      borderTopWidth: 2,
+      borderTopColor: colors.tertiary,
+    },
+    logoutButton: {
+      backgroundColor: "rgba(255, 68, 68, 0.1)",
+    },
+  });

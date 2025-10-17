@@ -462,7 +462,9 @@ function RecipeScreen() {
               setError(null);
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}>
+            <Text
+              style={{ color: colors.text, fontWeight: "bold", fontSize: 15 }}
+            >
               Réessayer
             </Text>
           </TouchableOpacity>
@@ -487,7 +489,7 @@ function RecipeScreen() {
           style={styles.menuButton}
           onPress={() => (navigation as any).openDrawer()}
         >
-          <Ionicons name="menu" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color={colors.icon} />
         </TouchableOpacity>
         <Text style={styles.homeTitle}>HOME</Text>
       </View>
@@ -636,7 +638,7 @@ function RecipeScreen() {
                         handleDeleteShoppingList(list.id, list.name)
                       }
                     >
-                      <Ionicons name="trash" size={20} color="#ff4444" />
+                      <Ionicons name="trash" size={20} color="red" />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -646,7 +648,7 @@ function RecipeScreen() {
                     setShowCreateListModal(true);
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  <Text style={{ color: colors.text, fontWeight: "bold" }}>
                     + Nouvelle liste
                   </Text>
                 </TouchableOpacity>
@@ -708,9 +710,13 @@ function RecipeScreen() {
                   }}
                   disabled={isActionLoading}
                 >
-                  <Ionicons name="trash" size={20} color="#fff" />
+                  <Ionicons name="trash" size={20} color={colors.icon} />
                   <Text
-                    style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}
+                    style={{
+                      color: colors.text,
+                      fontWeight: "bold",
+                      fontSize: 15,
+                    }}
                   >
                     Supprimer tous les items
                   </Text>
@@ -873,7 +879,7 @@ function ShoppingRow({
             <MaterialIcons
               name="delete-outline"
               size={24}
-              color={colors.text}
+              color={colors.icon}
             />
           </TouchableOpacity>
         </View>
@@ -890,12 +896,6 @@ const getStyles = (colors: any) =>
       justifyContent: "space-between",
       paddingHorizontal: 0,
       width: "100%",
-    },
-    editButton: {
-      backgroundColor: "#4da6ff",
-      padding: 8,
-      borderRadius: 6,
-      marginLeft: 6,
     },
     deleteButton: {
       backgroundColor: colors.action,
@@ -937,9 +937,6 @@ const getStyles = (colors: any) =>
       color: colors.text,
       letterSpacing: 1,
     },
-    logoutIcon: {
-      padding: 4,
-    },
     block: {
       backgroundColor: colors.secondary,
       width: "100%",
@@ -979,27 +976,8 @@ const getStyles = (colors: any) =>
       fontSize: 15,
       textAlign: "center",
     },
-    familyMembersList: {
-      marginBottom: 12,
-    },
-    familyName: {
-      fontSize: 16,
-      color: colors.text,
-      marginBottom: 8,
-    },
-    familyMember: {
-      fontSize: 14,
-      color: colors.text,
-      marginBottom: 4,
-    },
     shoppingList: {
       marginTop: 12,
-    },
-    membersRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      marginBottom: 10,
-      gap: 8,
     },
     memberTile: {
       backgroundColor: colors.tertiary,
@@ -1010,20 +988,6 @@ const getStyles = (colors: any) =>
       marginRight: 8,
       alignItems: "center",
       minWidth: 48,
-    },
-    memberTileText: {
-      color: colors.text,
-      fontSize: 15,
-      textAlign: "center",
-      fontWeight: "bold",
-    },
-    addIngredientButton: {
-      backgroundColor: colors.action,
-      borderRadius: 8,
-      padding: 8,
-      marginLeft: 8,
-      alignItems: "center",
-      justifyContent: "center",
     },
     listSelectorBlock: {
       backgroundColor: colors.secondary,
@@ -1059,18 +1023,6 @@ const getStyles = (colors: any) =>
       alignItems: "center",
       justifyContent: "center",
       marginTop: 8,
-    },
-    categoryBox: {
-      backgroundColor: colors.secondary,
-      borderRadius: 14,
-      borderWidth: 2,
-      borderColor: colors.action,
-      padding: 12,
-      marginBottom: 18,
-      shadowColor: colors.primary,
-      shadowOpacity: 0.1,
-      shadowRadius: 6,
-      elevation: 2,
     },
     itemBlock: {
       backgroundColor: colors.primary,
@@ -1108,111 +1060,9 @@ const getStyles = (colors: any) =>
       fontWeight: "bold",
       marginLeft: 2,
     },
-    modalTitle: {
-      color: colors.text,
-      fontSize: 20,
-      fontWeight: "bold",
-      marginBottom: 16,
-      textAlign: "center",
-    },
-    modalSearchRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      width: "100%",
-      marginBottom: 12,
-      gap: 8,
-      justifyContent: "center",
-    },
-    modalSearchInput: {
-      backgroundColor: colors.tertiary,
-      color: colors.text,
-      fontSize: 16,
-      borderRadius: 8,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderWidth: 2,
-      borderColor: colors.action,
-      flex: 1,
-      marginRight: 8,
-    },
-    modalSendButton: {
-      backgroundColor: colors.action,
-      borderRadius: 8,
-      padding: 8,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalResults: {
-      width: "100%",
-      marginTop: 8,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    modalContent: {
-      backgroundColor: colors.secondary,
-      borderRadius: 16,
-      padding: 24,
-      width: "90%",
-      maxWidth: 400,
-      alignItems: "center",
-    },
-    modalResultItem: {
-      backgroundColor: colors.tertiary,
-      borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      marginBottom: 8,
-    },
     addIngredientBlock: {
       alignItems: "center",
       width: "100%",
-    },
-    addIngredientBlockRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      width: "100%",
-      gap: 8,
-      marginBottom: 8,
-      justifyContent: "center",
-    },
-    selectedIngredientName: {
-      color: colors.text,
-      fontSize: 16,
-      fontWeight: "bold",
-      marginHorizontal: 8,
-      maxWidth: 120,
-      overflow: "hidden",
-    },
-    qtyRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
-      gap: 8,
-      width: "100%",
-      justifyContent: "center",
-    },
-    qtyInput: {
-      backgroundColor: colors.tertiary,
-      color: colors.text,
-      fontSize: 16,
-      borderRadius: 8,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderWidth: 2,
-      borderColor: colors.action,
-      width: 90,
-      textAlign: "center",
-      marginRight: 8,
-    },
-    unitPickerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginLeft: 8,
     },
     unitPicker: {
       flexDirection: "row",
@@ -1230,41 +1080,6 @@ const getStyles = (colors: any) =>
       marginBottom: 4,
       borderWidth: 1,
       borderColor: colors.tertiary,
-    },
-    unitItemSelected: {
-      backgroundColor: colors.action,
-      borderColor: colors.action,
-    },
-    modalAddButton: {
-      backgroundColor: colors.action,
-      borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 24,
-      marginTop: 8,
-      marginBottom: 4,
-      alignItems: "center",
-      justifyContent: "center",
-      opacity: 1,
-    },
-    modalCloseButton: {
-      backgroundColor: colors.action,
-      borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 24,
-      marginTop: 8,
-    },
-    deleteButtonText: {
-      color: colors.text,
-      fontWeight: "bold",
-      fontSize: 16,
-    },
-    addIngredientBlockBtnsRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      marginTop: 8,
-      width: "100%",
     },
   });
 

@@ -75,7 +75,7 @@ const getStyles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.secondary,
+      backgroundColor: colors.primary,
     },
     header: {
       flexDirection: "row",
@@ -103,7 +103,7 @@ const getStyles = (colors: any) =>
       paddingVertical: 14,
       marginBottom: 8,
       borderRadius: 8,
-      backgroundColor: colors.tertiary,
+      backgroundColor: colors.secondary,
     },
     menuItemText: {
       fontSize: 16,

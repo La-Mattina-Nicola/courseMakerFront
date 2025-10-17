@@ -116,7 +116,7 @@ const RecipeCard: React.FC<RecipeCardMemoProps> = React.memo(
                 handleAddToShoppingList();
               }}
             >
-              <Ionicons name="add" size={20} color="#fff" />
+              <Ionicons name="add" size={20} color={colors.icon} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -127,7 +127,7 @@ const RecipeCard: React.FC<RecipeCardMemoProps> = React.memo(
               bottom: 30,
               left: 20,
               right: 20,
-              backgroundColor: "#2ecc40",
+              backgroundColor: "green",
               padding: 16,
               borderRadius: 12,
               alignItems: "center",
@@ -135,7 +135,7 @@ const RecipeCard: React.FC<RecipeCardMemoProps> = React.memo(
               elevation: 10,
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "bold" }}>
+            <Text style={{ color: colors.text, fontWeight: "bold" }}>
               Recette ajoutée à la liste de courses !
             </Text>
           </View>
@@ -433,7 +433,7 @@ const RecipeScreen: React.FC = () => {
           style={styles.menuButton}
           onPress={() => (navigation as any).openDrawer()}
         >
-          <Ionicons name="menu" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color={colors.icon} />
         </TouchableOpacity>
         <Text style={styles.homeTitle}>RECETTE</Text>
       </View>
@@ -610,11 +610,15 @@ const RecipeScreen: React.FC = () => {
                 <Ionicons
                   name="add"
                   size={20}
-                  color="#fff"
+                  color={colors.icon}
                   style={{ marginRight: 10 }}
                 />
                 <Text
-                  style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}
+                  style={{
+                    color: colors.text,
+                    fontWeight: "bold",
+                    fontSize: 15,
+                  }}
                 >
                   Créer une nouvelle recette
                 </Text>
@@ -637,13 +641,13 @@ const RecipeScreen: React.FC = () => {
       {typeError && (
         <View
           style={{
-            backgroundColor: "#fee",
+            backgroundColor: colors.tertiary,
             padding: 12,
             margin: 12,
             borderRadius: 8,
           }}
         >
-          <Text style={{ color: "#b00", fontWeight: "bold" }}>
+          <Text style={{ color: "red", fontWeight: "bold" }}>
             Erreur chargement types : {typeError}
           </Text>
         </View>
@@ -676,7 +680,7 @@ const getStyles = (colors: any) =>
       textAlign: "center",
     },
     typeTileTextSelected: {
-      color: "#fff",
+      color: colors.text,
     },
     infoBlocksRow: {
       flexDirection: "row",
@@ -838,7 +842,7 @@ const getStyles = (colors: any) =>
       margin: 6,
     },
     cardTitle: { fontSize: 16, fontWeight: "500", color: colors.text },
-    cardSubtitle: { fontSize: 12, color: colors.icon, marginTop: 8 },
+    cardSubtitle: { fontSize: 12, color: colors.text, marginTop: 8 },
     addButton: {
       position: "absolute",
       bottom: 24,

@@ -36,7 +36,7 @@ const IngredientCard = ({
         <Text style={styles.cardTitle}>{item.name}</Text>
       </View>
       <TouchableOpacity style={styles.addToListButton} onPress={onAdd}>
-        <Ionicons name="add" size={20} color="#fff" />
+        <Ionicons name="add" size={20} color={colors.icon} />
       </TouchableOpacity>
     </View>
   );
@@ -292,7 +292,7 @@ const IngredientScreen = () => {
             bottom: 30,
             left: 20,
             right: 20,
-            backgroundColor: "#2ecc40",
+            backgroundColor: "green",
             padding: 16,
             borderRadius: 12,
             alignItems: "center",
@@ -300,7 +300,7 @@ const IngredientScreen = () => {
             elevation: 10,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>
+          <Text style={{ color: colors.text, fontWeight: "bold" }}>
             {successMessage}
           </Text>
         </View>
@@ -311,7 +311,7 @@ const IngredientScreen = () => {
           style={styles.menuButton}
           onPress={() => (navigation as any).openDrawer()}
         >
-          <Ionicons name="menu" size={28} color="#fff" />
+          <Ionicons name="menu" size={28} color={colors.icon} />
         </TouchableOpacity>
         <Text style={styles.homeTitle}>INGRÉDIENTS</Text>
       </View>
@@ -530,11 +530,15 @@ const IngredientScreen = () => {
                 <Ionicons
                   name="add"
                   size={20}
-                  color="#fff"
+                  color={colors.icon}
                   style={{ marginRight: 10 }}
                 />
                 <Text
-                  style={{ color: "#fff", fontWeight: "bold", fontSize: 15 }}
+                  style={{
+                    color: colors.text,
+                    fontWeight: "bold",
+                    fontSize: 15,
+                  }}
                 >
                   Créer un nouvel ingrédient
                 </Text>
@@ -614,9 +618,6 @@ const getStyles = (colors: any) =>
       color: colors.text,
       letterSpacing: 1,
     },
-    logoutIcon: {
-      padding: 4,
-    },
     searchRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -694,7 +695,7 @@ const getStyles = (colors: any) =>
       textAlign: "center",
     },
     typeTileTextSelected: {
-      color: "#fff",
+      color: colors.text,
     },
     grid: { gap: 1 },
     cardRow: {

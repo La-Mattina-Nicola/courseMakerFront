@@ -385,7 +385,7 @@ export default function FamilyScreen() {
                         style={[
                           styles.familyPickerItemText,
                           selectedFamily?.id === family.id && {
-                            color: "#fff",
+                            color: colors.text,
                             fontWeight: "bold",
                           },
                         ]}
@@ -443,7 +443,7 @@ export default function FamilyScreen() {
                   />
                 </View>
                 {createFamilyError && (
-                  <Text style={{ color: "#b00", marginVertical: 8 }}>
+                  <Text style={{ color: "red", marginVertical: 8 }}>
                     {createFamilyError}
                   </Text>
                 )}
@@ -521,7 +521,7 @@ export default function FamilyScreen() {
                       }
                     }}
                   >
-                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                    <Text style={{ color: colors.text, fontWeight: "bold" }}>
                       {creatingFamilyModal ? "Création..." : "Créer"}
                     </Text>
                   </TouchableOpacity>
@@ -533,7 +533,7 @@ export default function FamilyScreen() {
                       setCreateFamilyError(null);
                     }}
                   >
-                    <Text style={{ color: "#fff" }}>Annuler</Text>
+                    <Text style={{ color: colors.text }}>Annuler</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -579,7 +579,7 @@ export default function FamilyScreen() {
                       <MaterialIcons
                         name="delete-outline"
                         size={22}
-                        color="#b00"
+                        color="red"
                       />
                     </TouchableOpacity>
                   </View>
@@ -664,7 +664,7 @@ const getStyles = (colors: any) =>
       paddingVertical: 8,
       paddingHorizontal: 8,
       borderBottomWidth: 1,
-      borderBottomColor: colors.tertiary,
+      borderBottomColor: colors.secondary,
     },
     typePickerText: {
       color: colors.text,
@@ -726,7 +726,7 @@ const getStyles = (colors: any) =>
       marginBottom: 8,
     },
     card: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.tertiary,
       width: "50%",
       height: 100,
       borderRadius: 12,
@@ -751,7 +751,7 @@ const getStyles = (colors: any) =>
       marginBottom: 10,
     },
     familySelector: {
-      backgroundColor: colors.tertiary,
+      backgroundColor: colors.secondary,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 12,
@@ -770,7 +770,7 @@ const getStyles = (colors: any) =>
       color: colors.text,
     },
     familyPickerBlock: {
-      backgroundColor: colors.tertiary,
+      backgroundColor: colors.primary,
       borderRadius: 8,
       paddingVertical: 8,
       marginBottom: 16,
@@ -793,7 +793,7 @@ const getStyles = (colors: any) =>
     },
     searchUserInput: {
       flex: 1,
-      backgroundColor: colors.tertiary,
+      backgroundColor: colors.primary,
       color: colors.text,
       borderRadius: 8,
       paddingHorizontal: 12,
@@ -844,7 +844,7 @@ const getStyles = (colors: any) =>
     },
     createFamilyInput: {
       flex: 1,
-      backgroundColor: colors.tertiary,
+      backgroundColor: colors.secondary,
       color: colors.text,
       borderRadius: 8,
       paddingHorizontal: 12,
